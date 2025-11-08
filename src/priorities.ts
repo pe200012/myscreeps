@@ -13,6 +13,9 @@ export const SpawnPriorities = {
     /** Drones mine energy and should come online before other economy */
     drone: 10,
 
+    /** Upgraders can wait slightly longer than other economic roles */
+    upgrader: 30,
+
     /** Queens keep extensions topped up so they stay near the top */
     queen: 50,
 
@@ -24,9 +27,6 @@ export const SpawnPriorities = {
 
     /** Workers build and repair critical infrastructure */
     worker: 120,
-
-    /** Upgraders can wait slightly longer than other economic roles */
-    upgrader: 160,
 
     /** Standby defenders fall behind eco unless an emergency elevates them */
     defender: 240,
