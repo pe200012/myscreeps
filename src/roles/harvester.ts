@@ -157,6 +157,10 @@ export function runHarvester(creep: Creep): void {
     }
 }
 
+export const HarvesterBehavior = {
+    run: runHarvester
+};
+
 function getHarvesterIdlePosition(room: Room): RoomPosition | null {
     const terrain = room.getTerrain();
     const candidates: RoomPosition[] = [];

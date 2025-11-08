@@ -7,11 +7,11 @@ describe("Screeps Game Loop", () => {
 
     test("creep memory structure", () => {
         const memory: CreepMemory = {
-            role: "harvester",
+            role: "worker",
             working: false,
         };
 
-        expect(memory.role).toBe("harvester");
+        expect(memory.role).toBe("worker");
         expect(memory.working).toBe(false);
     });
 });

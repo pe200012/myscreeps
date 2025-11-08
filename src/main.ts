@@ -1,9 +1,6 @@
 import { BasePlanner } from "./planner/BasePlanner";
+import { runColonies } from "./colony/ColonyManager";
 import { ErrorMapper } from "./utils/ErrorMapper";
-import { manageSpawning } from "./spawning";
-import { HARVESTER_ROLE, runHarvester } from "./roles/harvester";
-import { BUILDER_ROLE, runBuilder } from "./roles/builder";
-import { GUARD_ROLE, runGuard } from "./roles/guard";
 import { ALLY_USERNAMES } from "./constants";
 
 export const loop = ErrorMapper.wrapLoop(() => {
@@ -30,23 +27,17 @@ export const loop = ErrorMapper.wrapLoop(() => {
         } else {
             room.memory.defense.threatLevel = 0;
         }
-
-        manageSpawning(room, hostiles);
     }
 
+    const handled = runColonies(ownedRooms);
+
+    // Fallback behavior: ensure any straggler creeps at least defend themselves
     for (const creep of Object.values(Game.creeps)) {
         if (!creep.memory.room) {
             creep.memory.room = creep.room.name;
         }
-
-        if (creep.memory.role === HARVESTER_ROLE) {
-            runHarvester(creep);
-        } else if (creep.memory.role === GUARD_ROLE) {
-            runGuard(creep, hostilesByRoom);
-        } else if (creep.memory.role === BUILDER_ROLE) {
-            runBuilder(creep);
-        } else {
-            runHarvester(creep);
+        if (!handled.has(creep.name)) {
+            defaultFallback(creep, hostilesByRoom);
         }
     }
 });
@@ -55,6 +46,25 @@ function cleanupMemory(): void {
     for (const name in Memory.creeps) {
         if (!(name in Game.creeps)) {
             delete Memory.creeps[name];
+        }
+    }
+}
+
+function defaultFallback(creep: Creep, hostilesByRoom: Record<string, Creep[]>): void {
+    const hostiles = hostilesByRoom[creep.memory.room ?? creep.room.name] ?? [];
+    if (hostiles.length > 0) {
+        const target = creep.pos.findClosestByPath(hostiles);
+        if (target) {
+            if (creep.attack(target) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(target, { visualizePathStyle: { stroke: "#ff0000" } });
+            }
+            return;
+        }
+    }
+
+    if (creep.room.controller && creep.room.controller.my) {
+        if (creep.upgradeController(creep.room.controller) === ERR_NOT_IN_RANGE) {
+            creep.moveTo(creep.room.controller, { visualizePathStyle: { stroke: "#99c1f1" } });
         }
     }
 }

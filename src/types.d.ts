@@ -5,6 +5,14 @@ interface CreepMemory {
     room?: string;
     targetRoom?: string;
     sourceId?: string;
+    overlord?: string;
+    spawnTick?: number;
+    hauling?: boolean;
+    refilling?: boolean;
+    task?: string;
+    targetId?: Id<any>;
+    containerId?: Id<StructureContainer>;
+    linkId?: Id<StructureLink>;
 }
 
 interface PlannerStructureMemory {
