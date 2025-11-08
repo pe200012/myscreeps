@@ -3,6 +3,7 @@ import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
 import typescript from "rollup-plugin-typescript2";
 import screeps from "rollup-plugin-screeps";
+import terser from "@rollup/plugin-terser";
 import { readFileSync } from "fs";
 
 let cfg;
@@ -30,6 +31,18 @@ export default {
         resolve({ rootDir: "src" }),
         commonjs(),
         typescript({ tsconfig: "./tsconfig.json" }),
+        terser({
+            compress: {
+                passes: 2,
+                drop_console: false,
+            },
+            mangle: {
+                toplevel: true,
+            },
+            format: {
+                comments: false,
+            },
+        }),
         screeps({ config: cfg, dryRun: cfg == null }),
     ],
 };
