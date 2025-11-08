@@ -2,36 +2,34 @@
  * Spawn priority constants for different creep roles.
  * Lower numbers = higher priority in the spawn queue.
  *
- * Priority bands:
- * - 0-99: Emergency/critical roles (emergency spawns, defenders)
- * - 100-199: Core economic roles (queen, manager, drones)
- * - 200-299: Support economic roles (transport, workers, upgraders)
- * - 300+: Expansion and scouting roles (scouts, remote operations)
+ * Numbers are spaced to mirror the ordering used in Overmind
+ * (https://github.com/bencbartlett/Overmind) so economic roles finish
+ * recovering before standing defense creeps consume spawn time.
  */
 export const SpawnPriorities = {
     /** Critical emergency spawning (highest priority) */
     emergency: 0,
 
-    /** Defenders for active threat response */
-    defender: 25,
+    /** Drones mine energy and should come online before other economy */
+    drone: 10,
 
-    /** Queens for spawn/extension refilling */
+    /** Queens keep extensions topped up so they stay near the top */
     queen: 50,
 
-    /** Managers for storage/terminal/link management */
-    manager: 75,
+    /** Managers handle storage/terminal/link throughput */
+    manager: 60,
 
-    /** Drones for source harvesting */
-    drone: 100,
+    /** Transports move harvested energy to storage/spawns */
+    transport: 90,
 
-    /** Transport creeps for hauling */
-    transport: 150,
+    /** Workers build and repair critical infrastructure */
+    worker: 120,
 
-    /** Workers for construction and repair */
-    worker: 200,
+    /** Upgraders can wait slightly longer than other economic roles */
+    upgrader: 160,
 
-    /** Upgraders for controller upgrades */
-    upgrader: 250,
+    /** Standby defenders fall behind eco unless an emergency elevates them */
+    defender: 240,
 
     /** Scouts for room observation */
     scout: 320,
