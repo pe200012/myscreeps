@@ -38,6 +38,7 @@ export default {
             },
             mangle: {
                 toplevel: true,
+                reserved: ["_"],
             },
             format: {
                 comments: false,
