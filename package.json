@@ -1,0 +1,46 @@
+{
+    "name": "myscreeps",
+    "version": "1.0.0",
+    "description": "Screeps TypeScript starter project",
+    "main": "index.js",
+    "scripts": {
+        "build": "bun run rollup -c",
+        "watch": "bun run rollup -cw",
+        "push": "bun run rollup -c --environment DEST:main",
+        "push-sim": "bun run rollup -c --environment DEST:sim",
+        "push-local": "bun run rollup -c --environment DEST:local",
+        "test": "bun test",
+        "lint": "bun run eslint src/**/*.ts",
+        "prettier": "bun run prettier --write 'src/**/*.{ts,js}'"
+    },
+    "repository": {
+        "type": "git",
+        "url": ""
+    },
+    "keywords": [
+        "screeps",
+        "typescript",
+        "game"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "@rollup/plugin-commonjs": "^29.0.0",
+        "@rollup/plugin-node-resolve": "^16.0.3",
+        "@types/bun": "latest",
+        "@types/lodash": "^4.17.20",
+        "@types/node": "^24.10.0",
+        "@types/screeps": "^3.3.8",
+        "@typescript-eslint/eslint-plugin": "^8.46.3",
+        "@typescript-eslint/parser": "^8.46.3",
+        "eslint": "^9.39.1",
+        "eslint-config-prettier": "^10.1.8",
+        "lodash": "^4.17.21",
+        "prettier": "^3.6.2",
+        "rollup": "^4.52.5",
+        "rollup-plugin-clear": "^2.0.7",
+        "rollup-plugin-screeps": "^1.0.1",
+        "rollup-plugin-typescript2": "^0.36.0",
+        "typescript": "^5.9.3"
+    }
+}
