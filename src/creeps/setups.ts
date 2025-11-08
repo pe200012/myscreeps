@@ -163,7 +163,7 @@ export const CreepSetups = {
     /** Defenders: Combat units for base defense */
     defender: {
         emergency: new CreepSetup(CreepRoles.defender, {
-            prefix: [TOUGH, MOVE, ATTACK],
+            prefix: [TOUGH, TOUGH, MOVE, MOVE, ATTACK],
             pattern: [MOVE, ATTACK],
             suffix: [],
             sizeLimit: 2,

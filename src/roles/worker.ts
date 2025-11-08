@@ -3,7 +3,7 @@
  *
  * Behavior:
  * - Gathers energy from storage, containers, dropped resources, or sources
- * - Prioritizes construction sites when available
+ * - Prioritizes construction sites by structure type (spawns/towers first)
  * - Repairs structures below threshold (walls/ramparts to target HP)
  * - Falls back to upgrading controller when idle
  *
@@ -12,6 +12,7 @@
  */
 
 import { CreepRoles } from "../creeps/setups";
+import { BuildPriorities } from "../priorities/buildPriorities";
 
 export const WORKER_ROLE = CreepRoles.worker;
 
@@ -51,11 +52,15 @@ export const WorkerBehavior = {
             if (this.tryBuild(creep)) {
                 return;
             }
+            // Clear build target if not building anymore
+            delete creep.memory.buildTarget;
             if (this.tryRepair(creep, options)) {
                 return;
             }
             this.upgrade(creep);
         } else {
+            // Clear build target when gathering
+            delete creep.memory.buildTarget;
             this.gather(creep);
         }
     },
@@ -102,16 +107,85 @@ export const WorkerBehavior = {
 
     /**
      * Attempts to build the nearest construction site.
+     * Prioritizes by structure type according to BuildPriorities.
+     * Prefers sites where other workers are already building (cooperation).
      * @returns true if a construction site was found and targeted
      */
     tryBuild(creep: Creep): boolean {
-        const site = creep.pos.findClosestByPath(FIND_CONSTRUCTION_SITES);
-        if (!site) {
+        // Group construction sites by structure type
+        const sites = creep.room.find(FIND_CONSTRUCTION_SITES);
+        if (sites.length === 0) {
             return false;
         }
-        const result = creep.build(site);
+
+        // Find all workers currently building
+        const workersBuilding = creep.room.find(FIND_MY_CREEPS, {
+            filter: c =>
+                c.id !== creep.id &&
+                c.memory.role === WORKER_ROLE &&
+                c.memory.working === true &&
+                c.memory.buildTarget
+        });
+
+        // Count workers per construction site
+        const workersPerSite = new Map<string, number>();
+        for (const worker of workersBuilding) {
+            const targetId = worker.memory.buildTarget;
+            if (targetId) {
+                workersPerSite.set(targetId, (workersPerSite.get(targetId) || 0) + 1);
+            }
+        }
+
+        // Group sites by type for priority sorting
+        const sitesByType: { [key: string]: ConstructionSite[] } = {};
+        for (const site of sites) {
+            if (!sitesByType[site.structureType]) {
+                sitesByType[site.structureType] = [];
+            }
+            sitesByType[site.structureType].push(site);
+        }
+
+        // Find the highest priority structure type that has sites
+        let target: ConstructionSite | null = null;
+        for (const structureType of BuildPriorities) {
+            const sitesOfType = sitesByType[structureType];
+            if (sitesOfType && sitesOfType.length > 0) {
+                // Sort sites: prioritize sites with workers, then by distance
+                const sortedSites = sitesOfType.sort((a, b) => {
+                    const workersA = workersPerSite.get(a.id) || 0;
+                    const workersB = workersPerSite.get(b.id) || 0;
+
+                    // Prefer sites with more workers (cooperation)
+                    if (workersA !== workersB) {
+                        return workersB - workersA;
+                    }
+
+                    // Fall back to distance if no workers or same number of workers
+                    const distA = creep.pos.getRangeTo(a);
+                    const distB = creep.pos.getRangeTo(b);
+                    return distA - distB;
+                });
+
+                target = sortedSites[0];
+                if (target) {
+                    break;
+                }
+            }
+        }
+
+        if (!target) {
+            return false;
+        }
+
+        // Store the build target in memory for cooperation tracking
+        creep.memory.buildTarget = target.id;
+
+        const result = creep.build(target);
         if (result === ERR_NOT_IN_RANGE) {
-            creep.moveTo(site, { reusePath: 3, visualizePathStyle: { stroke: "#ffffff" } });
+            creep.moveTo(target, { reusePath: 3, visualizePathStyle: { stroke: "#ffffff" } });
+        } else if (result === OK || result === ERR_INVALID_TARGET) {
+            // Clear build target when done or site is gone
+            delete creep.memory.buildTarget;
         }
         return true;
     },

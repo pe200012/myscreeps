@@ -16,6 +16,9 @@ export const SpawnPriorities = {
     /** Upgraders can wait slightly longer than other economic roles */
     upgrader: 30,
 
+    /** Workers build and repair critical infrastructure */
+    worker: 40,
+
     /** Queens keep extensions topped up so they stay near the top */
     queen: 50,
 
@@ -24,9 +27,6 @@ export const SpawnPriorities = {
 
     /** Transports move harvested energy to storage/spawns */
     transport: 90,
-
-    /** Workers build and repair critical infrastructure */
-    worker: 120,
 
     /** Standby defenders fall behind eco unless an emergency elevates them */
     defender: 240,

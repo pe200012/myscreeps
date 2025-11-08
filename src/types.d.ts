@@ -45,6 +45,9 @@ interface CreepMemory {
 
     /** Cached link ID (for drones) */
     linkId?: Id<StructureLink>;
+
+    /** Current construction site being built (for worker cooperation) */
+    buildTarget?: Id<ConstructionSite>;
 }
 
 /**

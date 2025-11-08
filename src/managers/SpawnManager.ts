@@ -120,8 +120,8 @@ export class SpawnManager {
 
     /**
      * Executes spawn queue processing for all available spawns.
-     * Processes highest priority requests first, waiting for energy if needed.
-     * Stops processing if insufficient energy for current priority level.
+     * Processes highest priority requests first.
+     * Dynamically skips orders that can't afford current energy and tries lower priorities.
      */
     run(): void {
         const room = Game.rooms[this.roomName];
@@ -136,22 +136,17 @@ export class SpawnManager {
 
         for (const spawn of spawns) {
             while (!spawn.spawning) {
-                const peeked = this.peek();
-                if (!peeked) {
+                const affordable = this.peekAffordable(room.energyAvailable, room.energyCapacityAvailable);
+                if (!affordable) {
+                    // No orders can be afforded with current energy
                     return;
                 }
 
-                const { priority, order } = peeked;
+                const { priority, order } = affordable;
                 const body = order.setup.generateBody(room.energyCapacityAvailable);
                 if (body.length === 0) {
                     this.consume(priority);
                     continue;
-                }
-
-                const cost = bodyCost(body);
-                if (room.energyAvailable < cost) {
-                    // Wait until we have the energy to honor this request before checking lower priorities
-                    return;
                 }
 
                 const name = this.generateName(order.role);
@@ -173,6 +168,8 @@ export class SpawnManager {
                 } else if (result === ERR_BUSY) {
                     return;
                 } else if (result === ERR_NOT_ENOUGH_ENERGY) {
+                    // This shouldn't happen since we pre-checked, but skip if it does
+                    console.log(`[SpawnManager] Unexpected energy shortage for ${order.role} in ${this.roomName}`);
                     return;
                 } else {
                     console.log(`[SpawnManager] Failed to spawn ${order.role} in ${this.roomName}: ${result}`);
@@ -183,9 +180,10 @@ export class SpawnManager {
     }
 
     /**
-     * Internal: peeks at the highest priority order without removing it.
+     * Internal: finds the highest priority order that can be afforded with current energy.
+     * Skips orders that are too expensive and checks lower priorities.
      */
-    private peek(): PeekOrder | undefined {
+    private peekAffordable(energyAvailable: number, energyCapacityAvailable: number): PeekOrder | undefined {
         const priorities = Array.from(this.queue.keys()).sort((a, b) => a - b);
         for (const priority of priorities) {
             const orders = this.queue.get(priority);
@@ -195,7 +193,17 @@ export class SpawnManager {
             }
 
             const order = orders[0];
-            return { priority, order };
+            const body = order.setup.generateBody(energyCapacityAvailable);
+            if (body.length === 0) {
+                // Invalid setup, will be consumed in run()
+                return { priority, order };
+            }
+
+            const cost = bodyCost(body);
+            if (energyAvailable >= cost) {
+                return { priority, order };
+            }
+            // Skip this priority level and check next (lower priority)
         }
         return undefined;
     }
