@@ -1,4 +1,6 @@
+import { SPAWN_ENERGY_RESERVE } from "../constants";
 import { CreepRoles } from "../creeps/setups";
+import { getHatcheryInfo, shouldProtectHatchery } from "../utils/logistics";
 
 export const QUEEN_ROLE = CreepRoles.queen;
 
@@ -26,26 +28,44 @@ export const QueenBehavior = {
     },
 
     withdrawEnergy(creep: Creep): void {
-        const structures: (StructureStorage | StructureLink | StructureContainer | StructureSpawn)[] = [];
-        if (creep.room.storage) {
-            structures.push(creep.room.storage);
-        }
-        const link = this.getSupplyLink(creep.room);
-        if (link) {
-            structures.push(link);
-        }
-        const containers = creep.room.find(FIND_STRUCTURES, {
-            filter: (structure): structure is StructureContainer => structure.structureType === STRUCTURE_CONTAINER
-        });
-        for (const container of containers) {
-            if (container.store[RESOURCE_ENERGY] > 0) {
-                structures.push(container);
+        const hatchery = getHatcheryInfo(creep.room);
+        const structures: AnyStoreStructure[] = [];
+        const seen = new Set<Id<AnyStoreStructure>>();
+
+        const addStructure = (structure: AnyStoreStructure | null | undefined): void => {
+            if (!structure) {
+                return;
             }
+            const id = structure.id as Id<AnyStoreStructure>;
+            if (seen.has(id)) {
+                return;
+            }
+            if (structure.store.getUsedCapacity(RESOURCE_ENERGY) <= 0) {
+                return;
+            }
+            structures.push(structure);
+            seen.add(id);
+        };
+
+        addStructure(hatchery.link);
+        for (const battery of hatchery.batteries) {
+            addStructure(battery);
         }
+
+        if (creep.room.storage) {
+            addStructure(creep.room.storage);
+        }
+
+        if (creep.room.terminal && creep.room.terminal.store.getUsedCapacity(RESOURCE_ENERGY) > 5000) {
+            addStructure(creep.room.terminal);
+        }
+
         const spawns = creep.room.find(FIND_MY_SPAWNS);
+        const protectReserve = shouldProtectHatchery(creep.room);
         for (const spawn of spawns) {
-            if (spawn.store[RESOURCE_ENERGY] > creep.room.energyCapacityAvailable / 2) {
-                structures.push(spawn);
+            const stored = spawn.store.getUsedCapacity(RESOURCE_ENERGY);
+            if (!protectReserve && stored > SPAWN_ENERGY_RESERVE) {
+                addStructure(spawn);
             }
         }
 
@@ -53,7 +73,7 @@ export const QueenBehavior = {
             filter: resource => resource.resourceType === RESOURCE_ENERGY && resource.amount >= 50
         });
 
-        const structure = this.pickStructureWithEnergy(creep, structures);
+        const structure = this.pickStructureWithEnergy(creep, structures, hatchery);
         if (structure) {
             const outcome = creep.withdraw(structure, RESOURCE_ENERGY);
             if (outcome === ERR_NOT_IN_RANGE) {
@@ -81,9 +101,13 @@ export const QueenBehavior = {
     },
 
     depositEnergy(creep: Creep): void {
+        const hatchery = getHatcheryInfo(creep.room);
+        const battery = hatchery.batteries.find(candidate => candidate.store.getFreeCapacity(RESOURCE_ENERGY) > 0) ?? null;
+
         const targets = this.getDepositTargets(creep.room);
         const fallback = creep.room.storage ?? creep.room.find(FIND_MY_SPAWNS)[0] ?? null;
-        const target = targets.length > 0 ? targets[0].structure : fallback;
+        const hatcheryNeedsEnergy = hatchery.spawnEnergy < SPAWN_ENERGY_RESERVE;
+        const target = hatcheryNeedsEnergy && battery ? battery : targets.length > 0 ? targets[0].structure : fallback;
         if (!target) {
             creep.say("no target");
             return;
@@ -118,36 +142,45 @@ export const QueenBehavior = {
         return spawnTargets;
     },
 
-    getSupplyLink(room: Room): StructureLink | null {
-        if (!room.memory.planner?.structures) {
-            return null;
-        }
-        const linkEntry = room.memory.planner.structures.find(struct => struct.type === STRUCTURE_LINK);
-        if (!linkEntry) {
-            return null;
-        }
-        const link = room.lookForAt(LOOK_STRUCTURES, linkEntry.x, linkEntry.y).find(structure =>
-            structure.structureType === STRUCTURE_LINK
-        );
-        return (link as StructureLink) ?? null;
-    },
-
-    pickStructureWithEnergy(creep: Creep, structures: AnyStoreStructure[]): AnyStoreStructure | null {
+    pickStructureWithEnergy(creep: Creep, structures: AnyStoreStructure[], hatchery: ReturnType<typeof getHatcheryInfo>): AnyStoreStructure | null {
         let best: AnyStoreStructure | null = null;
-        let highest = 0;
+        let highest = -Infinity;
+        const batteryIds = new Set(hatchery.batteries.map(battery => battery.id));
         for (const structure of structures) {
-            const available = structure.store?.[RESOURCE_ENERGY] ?? 0;
+            const available = structure.store.getUsedCapacity(RESOURCE_ENERGY);
             if (available <= 0) {
                 continue;
             }
             const distance = creep.pos.getRangeTo(structure);
-            const score = available - distance * 5;
+            const weight = this.structureWeight(structure, batteryIds, hatchery.link);
+            const score = available * weight - distance * 5;
             if (score > highest) {
                 highest = score;
                 best = structure;
             }
         }
         return best;
+    },
+
+    structureWeight(structure: AnyStoreStructure, batteryIds: Set<Id<StructureContainer>>, hatcheryLink: StructureLink | null): number {
+        if (batteryIds.has(structure.id as Id<StructureContainer>)) {
+            return 4;
+        }
+        if (hatcheryLink && structure.id === hatcheryLink.id) {
+            return 3;
+        }
+        switch (structure.structureType) {
+            case STRUCTURE_STORAGE:
+                return 2.5;
+            case STRUCTURE_TERMINAL:
+                return 1.8;
+            case STRUCTURE_LINK:
+                return 2.2;
+            case STRUCTURE_SPAWN:
+                return 1.5;
+            default:
+                return 1;
+        }
     },
 
     getClosestActiveSource(creep: Creep): Source | null {

@@ -43,7 +43,15 @@ interface DefenseMemory {
     threatLevel: number;
 }
 
+interface RemoteOutpostMemory {
+    room: string;
+    scoutInterval?: number;
+    lastVision?: number;
+    disabled?: boolean;
+}
+
 interface RoomMemory {
     planner?: PlannerMemory;
     defense?: DefenseMemory;
+    remotes?: RemoteOutpostMemory[];
 }

@@ -6,6 +6,8 @@ import { TransportOverlord } from "../overlords/TransportOverlord";
 import { WorkerOverlord } from "../overlords/WorkerOverlord";
 import { ManagerOverlord } from "../overlords/ManagerOverlord";
 import { UpgraderOverlord } from "../overlords/UpgraderOverlord";
+import { DefenseOverlord } from "../overlords/DefenseOverlord";
+import { RemoteScoutOverlord } from "../overlords/RemoteScoutOverlord";
 
 export class Colony {
     private readonly spawnManager: SpawnManager;
@@ -46,7 +48,9 @@ export class Colony {
             new TransportOverlord(room, spawnManager),
             new WorkerOverlord(room, spawnManager),
             new ManagerOverlord(room, spawnManager),
-            new UpgraderOverlord(room, spawnManager)
+            new UpgraderOverlord(room, spawnManager),
+            new DefenseOverlord(room, spawnManager),
+            new RemoteScoutOverlord(room, spawnManager)
         ];
     }
 }

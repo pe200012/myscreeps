@@ -6,7 +6,9 @@ export const CreepRoles = {
     worker: "worker",
     transport: "transport",
     drone: "drone",
-    upgrader: "upgrader"
+    upgrader: "upgrader",
+    defender: "defender",
+    scout: "scout"
 } as const;
 
 export const CreepSetups = {
@@ -130,6 +132,34 @@ export const CreepSetups = {
             pattern: [WORK, WORK, WORK, WORK, MOVE],
             suffix: [MOVE],
             sizeLimit: 6,
+            ordered: true,
+            proportionalPrefixSuffix: false
+        })
+    },
+    defender: {
+        emergency: new CreepSetup(CreepRoles.defender, {
+            prefix: [TOUGH, MOVE, ATTACK],
+            pattern: [MOVE, ATTACK],
+            suffix: [],
+            sizeLimit: 2,
+            ordered: true,
+            proportionalPrefixSuffix: false
+        }),
+        default: new CreepSetup(CreepRoles.defender, {
+            prefix: [TOUGH, TOUGH, MOVE, MOVE],
+            pattern: [ATTACK, ATTACK, MOVE],
+            suffix: [MOVE],
+            sizeLimit: 3,
+            ordered: true,
+            proportionalPrefixSuffix: false
+        })
+    },
+    scout: {
+        observe: new CreepSetup(CreepRoles.scout, {
+            prefix: [MOVE],
+            pattern: [MOVE],
+            suffix: [],
+            sizeLimit: 1,
             ordered: true,
             proportionalPrefixSuffix: false
         })

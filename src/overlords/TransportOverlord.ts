@@ -1,4 +1,4 @@
-import { TRANSPORT_PRESPAWN } from "../constants";
+import { TERMINAL_ENERGY_TARGET, TRANSPORT_PRESPAWN } from "../constants";
 import { CreepRoles, CreepSetups } from "../creeps/setups";
 import { SpawnPriorities } from "../priorities";
 import { TransportBehavior } from "../roles/transport";
@@ -34,8 +34,10 @@ export class TransportOverlord extends Overlord {
     }
 
     run(handled: Set<string>): void {
+        const room = this.room;
+        const preferStorage = !room?.terminal || room.terminal.store.getUsedCapacity(RESOURCE_ENERGY) >= TERMINAL_ENERGY_TARGET;
         for (const creep of this.creeps) {
-            TransportBehavior.run(creep);
+            TransportBehavior.run(creep, { preferStorage });
             handled.add(creep.name);
         }
     }

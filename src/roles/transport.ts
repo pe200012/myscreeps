@@ -1,4 +1,6 @@
+import { SPAWN_ENERGY_RESERVE } from "../constants";
 import { CreepRoles } from "../creeps/setups";
+import { getHatcheryInfo, shouldProtectHatchery, storageLink } from "../utils/logistics";
 
 export const TRANSPORT_ROLE = CreepRoles.transport;
 
@@ -26,24 +28,55 @@ export const TransportBehavior = {
     },
 
     collect(creep: Creep): void {
-        const storage = creep.room.storage;
-        if (storage && storage.store[RESOURCE_ENERGY] > 0 && storage.store.getUsedCapacity(RESOURCE_ENERGY) > 1000) {
-            if (creep.withdraw(storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                creep.moveTo(storage, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
+        const room = creep.room;
+        const hatchery = getHatcheryInfo(room);
+        const protectReserve = shouldProtectHatchery(room);
+        const storageTarget = room.storage;
+        const storageLinkTarget = storageLink(room);
+
+        if (storageLinkTarget && storageLinkTarget.store.getUsedCapacity(RESOURCE_ENERGY) >= creep.store.getCapacity() / 2) {
+            if (creep.withdraw(storageLinkTarget, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(storageLinkTarget, { reusePath: 2, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
             }
             return;
         }
 
-        const containers = creep.room.find(FIND_STRUCTURES, {
-            filter: (structure): structure is StructureContainer =>
-                structure.structureType === STRUCTURE_CONTAINER && structure.store.getUsedCapacity(RESOURCE_ENERGY) > 100
+        if (storageTarget && storageTarget.store.getUsedCapacity(RESOURCE_ENERGY) > 2000) {
+            if (creep.withdraw(storageTarget, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(storageTarget, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
+            }
+            return;
+        }
+
+        const batteryIds = new Set(hatchery.batteries.map(battery => battery.id));
+        const containerCandidates = room.find(FIND_STRUCTURES, {
+            filter: (structure): structure is StructureContainer => {
+                if (structure.structureType !== STRUCTURE_CONTAINER) {
+                    return false;
+                }
+                if (protectReserve && batteryIds.has(structure.id)) {
+                    return false;
+                }
+                return structure.store.getUsedCapacity(RESOURCE_ENERGY) > 100;
+            }
         });
-        if (containers.length > 0) {
-            const richest = containers.reduce((best, current) =>
-                (current.store[RESOURCE_ENERGY] > best.store[RESOURCE_ENERGY] ? current : best)
-            );
-            if (creep.withdraw(richest, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                creep.moveTo(richest, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
+
+        if (!protectReserve) {
+            for (const battery of hatchery.batteries) {
+                if (battery.store.getUsedCapacity(RESOURCE_ENERGY) > 200) {
+                    containerCandidates.push(battery);
+                }
+            }
+        }
+
+        if (containerCandidates.length > 0) {
+            const target = containerCandidates.reduce((best, current) => {
+                const bestScore = best.store.getUsedCapacity(RESOURCE_ENERGY) - creep.pos.getRangeTo(best) * 10;
+                const currentScore = current.store.getUsedCapacity(RESOURCE_ENERGY) - creep.pos.getRangeTo(current) * 10;
+                return currentScore > bestScore ? current : best;
+            });
+            if (creep.withdraw(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(target, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
             }
             return;
         }
@@ -59,12 +92,14 @@ export const TransportBehavior = {
     },
 
     deliver(creep: Creep, { preferStorage = false }: TransportBehaviorOptions): void {
+        const room = creep.room;
+        const hatchery = getHatcheryInfo(room);
         const targets: AnyStoreStructure[] = [];
-        const spawns = creep.room.find(FIND_MY_SPAWNS);
-        const extensions = creep.room.find(FIND_MY_STRUCTURES, {
+        const spawns = room.find(FIND_MY_SPAWNS);
+        const extensions = room.find(FIND_MY_STRUCTURES, {
             filter: structure => structure.structureType === STRUCTURE_EXTENSION
         }) as StructureExtension[];
-        const towers = creep.room.find(FIND_MY_STRUCTURES, {
+        const towers = room.find(FIND_MY_STRUCTURES, {
             filter: structure => structure.structureType === STRUCTURE_TOWER
         }) as StructureTower[];
 
@@ -81,8 +116,26 @@ export const TransportBehavior = {
             return;
         }
 
-        const storage = creep.room.storage ?? null;
-        const terminal = creep.room.terminal ?? null;
+        const storage = room.storage ?? null;
+        const terminal = room.terminal ?? null;
+        const battery = hatchery.batteries.find(candidate => candidate.store.getFreeCapacity(RESOURCE_ENERGY) > 0) ?? null;
+        const hatcheryNeedsEnergy = hatchery.spawnEnergy < SPAWN_ENERGY_RESERVE;
+
+        if (battery && (hatcheryNeedsEnergy || battery.store.getUsedCapacity(RESOURCE_ENERGY) < battery.store.getCapacity(RESOURCE_ENERGY) * 0.75)) {
+            if (creep.transfer(battery, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(battery, { reusePath: 2, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
+            }
+            return;
+        }
+
+        const storageLinkTarget = storageLink(room);
+        if (storageLinkTarget && storageLinkTarget.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+            if (creep.transfer(storageLinkTarget, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(storageLinkTarget, { reusePath: 2, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
+            }
+            return;
+        }
+
         if (storage && (!terminal || preferStorage)) {
             if (creep.transfer(storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
                 creep.moveTo(storage, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
@@ -97,9 +150,9 @@ export const TransportBehavior = {
             return;
         }
 
-        if (creep.room.storage) {
-            if (creep.transfer(creep.room.storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                creep.moveTo(creep.room.storage, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
+        if (room.storage) {
+            if (creep.transfer(room.storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(room.storage, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
             }
             return;
         }

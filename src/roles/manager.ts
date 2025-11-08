@@ -1,4 +1,6 @@
+import { MANAGER_STORAGE_THRESHOLD, TERMINAL_ENERGY_BUFFER, TERMINAL_ENERGY_TARGET } from "../constants";
 import { CreepRoles } from "../creeps/setups";
+import { storageLink, terminalHasExcess, terminalNeedsEnergy } from "../utils/logistics";
 
 export const MANAGER_ROLE = CreepRoles.manager;
 
@@ -28,11 +30,19 @@ export const ManagerBehavior = {
 
     collect(creep: Creep): void {
         const storage = creep.room.storage;
-        const commandLink = this.getCommandCenterLink(creep);
+        const commandLink = storageLink(creep.room);
+        const terminal = creep.room.terminal;
 
         if (commandLink && commandLink.store.getUsedCapacity(RESOURCE_ENERGY) >= 200) {
             if (creep.withdraw(commandLink, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
                 creep.moveTo(commandLink, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
+            }
+            return;
+        }
+
+        if (terminal && terminalHasExcess(creep.room, TERMINAL_ENERGY_TARGET, TERMINAL_ENERGY_BUFFER)) {
+            if (creep.withdraw(terminal, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(terminal, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
             }
             return;
         }
@@ -53,11 +63,19 @@ export const ManagerBehavior = {
         const links = creep.room.find(FIND_MY_STRUCTURES, {
             filter: structure => structure.structureType === STRUCTURE_LINK && structure.energy < structure.energyCapacity
         }) as StructureLink[];
+        const storageLinkTarget = storageLink(creep.room);
 
         if (towers.length > 0) {
             const tower = towers[0];
             if (creep.transfer(tower, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
                 creep.moveTo(tower, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
+            }
+            return;
+        }
+
+        if (storageLinkTarget && storageLinkTarget.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+            if (creep.transfer(storageLinkTarget, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(storageLinkTarget, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
             }
             return;
         }
@@ -70,7 +88,7 @@ export const ManagerBehavior = {
             return;
         }
 
-        if (terminal && terminal.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+        if (terminal && terminalNeedsEnergy(creep.room, TERMINAL_ENERGY_TARGET) && storage && storage.store.getUsedCapacity(RESOURCE_ENERGY) > MANAGER_STORAGE_THRESHOLD) {
             if (creep.transfer(terminal, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
                 creep.moveTo(terminal, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
             }
@@ -82,15 +100,5 @@ export const ManagerBehavior = {
                 creep.moveTo(storage, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
             }
         }
-    },
-
-    getCommandCenterLink(creep: Creep): StructureLink | null {
-        if (!creep.room.storage) {
-            return null;
-        }
-        const link = creep.room.storage.pos.findInRange(FIND_MY_STRUCTURES, 2, {
-            filter: structure => structure.structureType === STRUCTURE_LINK
-        })[0] as StructureLink | undefined;
-        return link ?? null;
     }
 };
