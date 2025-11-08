@@ -10,7 +10,7 @@ export const ALLY_USERNAMES: string[] = [];
 export const ENEMY_DANGER_RANGE = 5;
 
 /** Minimum number of drone harvesters to maintain per energy source */
-export const MIN_DRONES_PER_SOURCE = 1;
+export const MIN_DRONES_PER_SOURCE = 2;
 
 /** Number of ticks to consider a threat "recent" for defense spawning */
 export const RECENT_THREAT_TICKS = 150;
