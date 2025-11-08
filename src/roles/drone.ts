@@ -6,11 +6,13 @@
  * - Deposits energy into adjacent containers or links
  * - Sits on container to prevent decay damage
  * - Falls back to dropping or transferring to spawn if no infrastructure present
+ * - Avoids sources with nearby enemies
  *
  * Drones are the backbone of energy production, designed for maximum efficiency
  * when paired with source containers and optional links.
  */
 
+import { ALLY_USERNAMES, ENEMY_DANGER_RANGE } from "../constants";
 import { CreepRoles } from "../creeps/setups";
 
 export const DRONE_ROLE = CreepRoles.drone;
@@ -38,6 +40,25 @@ export const DroneBehavior = {
         const source = Game.getObjectById(creep.memory.sourceId as Id<Source>);
         if (!source) {
             delete creep.memory.sourceId;
+            return;
+        }
+
+        // Check for nearby enemies and flee if necessary
+        if (this.hasNearbyEnemies(source)) {
+            creep.say("⚠️");
+            // Try to find a safer source
+            const safeSource = this.findSafeSource(creep);
+            if (safeSource && safeSource.id !== source.id) {
+                creep.memory.sourceId = safeSource.id;
+                return;
+            }
+            // If no safe source, move away from current position toward spawn
+            const spawn = creep.room.find(FIND_MY_SPAWNS)[0];
+            if (spawn && creep.pos.getRangeTo(spawn) > 3) {
+                creep.moveTo(spawn, { reusePath: 3, visualizePathStyle: { stroke: "#ff0000" } });
+                return;
+            }
+            // Stay put if already at spawn
             return;
         }
 
@@ -104,6 +125,40 @@ export const DroneBehavior = {
             filter: source => !assigned.has(source.id)
         });
         return available[0] ?? creep.room.find(FIND_SOURCES)[0] ?? null;
+    },
+
+    /**
+     * Finds a source that doesn't have nearby enemies.
+     * Prioritizes unassigned sources, but will use any safe source if needed.
+     */
+    findSafeSource(creep: Creep): Source | null {
+        const assigned = new Set(Object.values(Game.creeps)
+            .filter(c => c !== creep && c.memory.role === DRONE_ROLE && c.memory.sourceId)
+            .map(c => c.memory.sourceId as string));
+
+        // First try to find an unassigned safe source
+        const unassignedSafe = creep.room.find(FIND_SOURCES, {
+            filter: source => !assigned.has(source.id) && !this.hasNearbyEnemies(source)
+        });
+        if (unassignedSafe.length > 0) {
+            return unassignedSafe[0];
+        }
+
+        // Fall back to any safe source
+        const anySafe = creep.room.find(FIND_SOURCES, {
+            filter: source => !this.hasNearbyEnemies(source)
+        });
+        return anySafe[0] ?? null;
+    },
+
+    /**
+     * Checks if there are hostile creeps near a source.
+     */
+    hasNearbyEnemies(source: Source): boolean {
+        const hostiles = source.pos.findInRange(FIND_HOSTILE_CREEPS, ENEMY_DANGER_RANGE, {
+            filter: hostile => !ALLY_USERNAMES.includes(hostile.owner.username)
+        });
+        return hostiles.length > 0;
     },
 
     /**

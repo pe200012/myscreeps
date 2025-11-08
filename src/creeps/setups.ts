@@ -117,7 +117,7 @@ export const CreepSetups = {
             proportionalPrefixSuffix: false
         }),
         standard: new CreepSetup(CreepRoles.drone, {
-            prefix: [WORK, WORK, MOVE],
+            prefix: [WORK, CARRY, CARRY, MOVE],
             pattern: [WORK, WORK, CARRY, MOVE],
             suffix: [],
             sizeLimit: 2,
