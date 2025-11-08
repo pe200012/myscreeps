@@ -1,5 +1,13 @@
+/**
+ * Centralized creep role definitions and body configurations.
+ * Defines all creep types and their variants (early/default/late game).
+ */
+
 import { CreepSetup } from "./CreepSetup";
 
+/**
+ * Standard role identifiers used throughout the codebase.
+ */
 export const CreepRoles = {
     queen: "queen",
     manager: "manager",
@@ -11,7 +19,18 @@ export const CreepRoles = {
     scout: "scout"
 } as const;
 
+/**
+ * Predefined creep setups for all roles and game stages.
+ * Each role may have multiple variants (early/default/late) for different RCL levels.
+ *
+ * Setup naming conventions:
+ * - early: Low-energy setups for RCL 1-3
+ * - default: Standard setups for RCL 4-7
+ * - late/rcl8: Optimized setups for RCL 8
+ * - emergency: Minimal viable setups for critical situations
+ */
 export const CreepSetups = {
+    /** Queens: Spawn and extension fillers for hatchery logistics */
     queen: {
         early: new CreepSetup(CreepRoles.queen, {
             prefix: [CARRY, MOVE],
@@ -30,6 +49,7 @@ export const CreepSetups = {
             proportionalPrefixSuffix: false
         })
     },
+    /** Managers: Command center operators for storage/terminal/link coordination */
     manager: {
         default: new CreepSetup(CreepRoles.manager, {
             prefix: [CARRY, CARRY, MOVE],
@@ -40,6 +60,7 @@ export const CreepSetups = {
             proportionalPrefixSuffix: false
         })
     },
+    /** Workers: General construction, repair, and upgrade units */
     worker: {
         early: new CreepSetup(CreepRoles.worker, {
             prefix: [],
@@ -66,6 +87,7 @@ export const CreepSetups = {
             proportionalPrefixSuffix: false
         })
     },
+    /** Transports: Dedicated haulers for moving energy around the base */
     transport: {
         early: new CreepSetup(CreepRoles.transport, {
             prefix: [],
@@ -84,6 +106,7 @@ export const CreepSetups = {
             proportionalPrefixSuffix: false
         })
     },
+    /** Drones: Static source harvesters that mine into containers/links */
     drone: {
         emergency: new CreepSetup(CreepRoles.drone, {
             prefix: [WORK, CARRY, MOVE],
@@ -110,6 +133,7 @@ export const CreepSetups = {
             proportionalPrefixSuffix: false
         })
     },
+    /** Upgraders: Dedicated controller upgraders for progression */
     upgrader: {
         early: new CreepSetup(CreepRoles.upgrader, {
             prefix: [],
@@ -136,6 +160,7 @@ export const CreepSetups = {
             proportionalPrefixSuffix: false
         })
     },
+    /** Defenders: Combat units for base defense */
     defender: {
         emergency: new CreepSetup(CreepRoles.defender, {
             prefix: [TOUGH, MOVE, ATTACK],
@@ -154,6 +179,7 @@ export const CreepSetups = {
             proportionalPrefixSuffix: false
         })
     },
+    /** Scouts: Fast observers for remote room reconnaissance */
     scout: {
         observe: new CreepSetup(CreepRoles.scout, {
             prefix: [MOVE],

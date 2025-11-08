@@ -1,3 +1,13 @@
+/**
+ * Queen Overlord: Manages spawn and extension refilling creeps.
+ *
+ * Spawning logic:
+ * - Maintains exactly 1 queen per room
+ * - Uses early setup before storage, default setup after
+ * - Prespawns based on QUEEN_PRESPAWN constant
+ * - High priority (50) to ensure spawn energy supply
+ */
+
 import { QUEEN_PRESPAWN } from "../constants";
 import { CreepRoles, CreepSetups } from "../creeps/setups";
 import { SpawnPriorities } from "../priorities";

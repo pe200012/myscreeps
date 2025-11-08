@@ -1,10 +1,32 @@
+/**
+ * Manager role: Command center operator for storage/terminal/link coordination.
+ *
+ * Behavior:
+ * - Sits at the command center (storage/terminal area)
+ * - Balances energy between storage and terminal
+ * - Fills towers and links from storage energy
+ * - Manages storage link (command link) energy flow
+ * - Maintains terminal energy target with buffer
+ *
+ * Managers are critical for RCL 6+ economies, enabling efficient resource
+ * distribution from central storage to active production and defense.
+ */
+
 import { MANAGER_STORAGE_THRESHOLD, TERMINAL_ENERGY_BUFFER, TERMINAL_ENERGY_TARGET } from "../constants";
 import { CreepRoles } from "../creeps/setups";
 import { storageLink, terminalHasExcess, terminalNeedsEnergy } from "../utils/logistics";
 
 export const MANAGER_ROLE = CreepRoles.manager;
 
+/**
+ * Manager behavior implementation.
+ * Manages collection from command link/terminal and delivery to towers/links/terminal.
+ */
 export const ManagerBehavior = {
+    /**
+     * Main execution method called each tick.
+     * Toggles between collecting and delivering energy.
+     */
     run(creep: Creep): void {
         if (!creep.room.storage) {
             return;
@@ -28,6 +50,10 @@ export const ManagerBehavior = {
         }
     },
 
+    /**
+     * Collects energy from storage link (priority) or terminal (if excess).
+     * Falls back to storage if no high-priority sources available.
+     */
     collect(creep: Creep): void {
         const storage = creep.room.storage;
         const commandLink = storageLink(creep.room);
@@ -54,6 +80,10 @@ export const ManagerBehavior = {
         }
     },
 
+    /**
+     * Delivers energy with priority: towers → storage link → other links → terminal (if needed) → storage
+     * Balances terminal energy against configured target when storage threshold met.
+     */
     deliver(creep: Creep): void {
         const storage = creep.room.storage;
         const terminal = creep.room.terminal;

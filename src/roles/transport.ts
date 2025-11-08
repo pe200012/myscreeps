@@ -1,14 +1,40 @@
+/**
+ * Transport role: Dedicated haulers for moving energy throughout the base.
+ *
+ * Behavior:
+ * - Collects energy from storage, links, containers, and dropped resources
+ * - Delivers energy to spawns, extensions, towers, and storage/terminal
+ * - Prioritizes spawn structures, then batteries, then bulk storage
+ * - Respects spawn energy reserves during collection
+ * - Can prefer storage over terminal based on configuration
+ *
+ * Transports form the logistics backbone, complementing queens by handling
+ * bulk energy movement and feeding the production chain.
+ */
+
 import { SPAWN_ENERGY_RESERVE } from "../constants";
 import { CreepRoles } from "../creeps/setups";
 import { getHatcheryInfo, shouldProtectHatchery, storageLink } from "../utils/logistics";
 
 export const TRANSPORT_ROLE = CreepRoles.transport;
 
+/**
+ * Configuration options for transport behavior.
+ */
 export interface TransportBehaviorOptions {
+    /** Whether to prefer depositing to storage over terminal */
     preferStorage?: boolean;
 }
 
+/**
+ * Transport behavior implementation.
+ * Manages the hauling cycle and energy distribution logic.
+ */
 export const TransportBehavior = {
+    /**
+     * Main execution method called each tick.
+     * Toggles between collecting and delivering energy.
+     */
     run(creep: Creep, options: TransportBehaviorOptions = {}): void {
         if (creep.memory.hauling === undefined) {
             creep.memory.hauling = false;
@@ -27,6 +53,11 @@ export const TransportBehavior = {
         }
     },
 
+    /**
+     * Collects energy from various sources with intelligent prioritization.
+     * Prefers storage link, then storage itself, then containers, then dropped resources.
+     * Avoids depleting hatchery batteries when reserve protection is active.
+     */
     collect(creep: Creep): void {
         const room = creep.room;
         const hatchery = getHatcheryInfo(room);
@@ -91,6 +122,11 @@ export const TransportBehavior = {
         }
     },
 
+    /**
+     * Delivers energy to structures based on priority.
+     * Order: spawns/extensions/towers → batteries (if needed) → storage link → storage/terminal
+     * Falls back to dropping energy if no valid targets exist.
+     */
     deliver(creep: Creep, { preferStorage = false }: TransportBehaviorOptions): void {
         const room = creep.room;
         const hatchery = getHatcheryInfo(room);

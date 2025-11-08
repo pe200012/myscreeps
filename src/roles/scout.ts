@@ -1,8 +1,28 @@
+/**
+ * Scout role: Fast observers for remote room reconnaissance.
+ *
+ * Behavior:
+ * - Travels to assigned target room
+ * - Wanders around target room to maintain vision
+ * - Provides visibility for remote mining assessment and threat detection
+ * - Uses minimal body (1 MOVE part) for cost efficiency
+ *
+ * Scouts are managed by RemoteScoutOverlord based on room.memory.remotes configuration.
+ */
+
 import { CreepRoles } from "../creeps/setups";
 
 export const SCOUT_ROLE = CreepRoles.scout;
 
+/**
+ * Scout behavior implementation.
+ * Manages travel to target room and wandering for vision maintenance.
+ */
 export const ScoutBehavior = {
+    /**
+     * Main execution method called each tick.
+     * Navigates to target room and wanders to maintain vision.
+     */
     run(creep: Creep): void {
         const targetRoom = creep.memory.targetRoom ?? creep.memory.room ?? creep.room.name;
         if (creep.room.name !== targetRoom) {

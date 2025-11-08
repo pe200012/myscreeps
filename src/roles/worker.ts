@@ -1,13 +1,40 @@
+/**
+ * Worker role: General purpose construction, repair, and upgrade units.
+ *
+ * Behavior:
+ * - Gathers energy from storage, containers, dropped resources, or sources
+ * - Prioritizes construction sites when available
+ * - Repairs structures below threshold (walls/ramparts to target HP)
+ * - Falls back to upgrading controller when idle
+ *
+ * Workers are flexible laborers that handle all non-specialized tasks,
+ * adapting to the room's needs dynamically.
+ */
+
 import { CreepRoles } from "../creeps/setups";
 
 export const WORKER_ROLE = CreepRoles.worker;
 
+/**
+ * Configuration options for worker behavior.
+ */
 export interface WorkerBehaviorOptions {
+    /** Hit points ratio below which structures should be repaired (0.0-1.0) */
     repairThreshold: number;
+
+    /** Target hit points for walls and ramparts */
     wallTarget: number;
 }
 
+/**
+ * Worker behavior implementation.
+ * Manages gathering, building, repairing, and upgrading.
+ */
 export const WorkerBehavior = {
+    /**
+     * Main execution method called each tick.
+     * Toggles between gathering and working modes.
+     */
     run(creep: Creep, options: WorkerBehaviorOptions): void {
         if (creep.memory.working === undefined) {
             creep.memory.working = false;
@@ -33,6 +60,10 @@ export const WorkerBehavior = {
         }
     },
 
+    /**
+     * Gathers energy from available sources with priority order:
+     * storage → containers → dropped resources → active sources
+     */
     gather(creep: Creep): void {
         const storage = creep.room.storage;
         if (storage && storage.store.getUsedCapacity(RESOURCE_ENERGY) > 5000) {
@@ -69,6 +100,10 @@ export const WorkerBehavior = {
         }
     },
 
+    /**
+     * Attempts to build the nearest construction site.
+     * @returns true if a construction site was found and targeted
+     */
     tryBuild(creep: Creep): boolean {
         const site = creep.pos.findClosestByPath(FIND_CONSTRUCTION_SITES);
         if (!site) {
@@ -81,6 +116,13 @@ export const WorkerBehavior = {
         return true;
     },
 
+    /**
+     * Attempts to repair the nearest damaged structure.
+     * Walls and ramparts are repaired to wallTarget HP.
+     * Other structures are repaired when below repairThreshold ratio.
+     *
+     * @returns true if a repair target was found and targeted
+     */
     tryRepair(creep: Creep, { repairThreshold, wallTarget }: WorkerBehaviorOptions): boolean {
         const target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
             filter: structure => {
@@ -105,6 +147,9 @@ export const WorkerBehavior = {
         return true;
     },
 
+    /**
+     * Upgrades the room controller as a fallback activity.
+     */
     upgrade(creep: Creep): void {
         const controller = creep.room.controller;
         if (!controller) {

@@ -1,3 +1,14 @@
+/**
+ * Defense Overlord: Manages defender spawning based on threat levels.
+ *
+ * Spawning logic:
+ * - Spawns 0-3 defenders based on current hostile count
+ * - Uses emergency setup for light threats, default for heavy threats
+ * - Elevates to emergency priority when active hostiles present
+ * - Maintains 1 defender for RECENT_THREAT_TICKS after last hostile seen
+ * - Tracks threats via room.memory.defense
+ */
+
 import { ALLY_USERNAMES, DEFENSE_PRESPAWN, RECENT_THREAT_TICKS } from "../constants";
 import { CreepRoles, CreepSetups } from "../creeps/setups";
 import { SpawnPriorities } from "../priorities";

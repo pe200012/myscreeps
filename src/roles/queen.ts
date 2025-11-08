@@ -1,15 +1,38 @@
+/**
+ * Queen role: Spawn and extension refiller for hatchery logistics.
+ *
+ * Behavior:
+ * - Withdraws energy from storage, links, batteries, or harvests from sources
+ * - Deposits energy into spawns, extensions, and towers
+ * - Prioritizes hatchery batteries and links when available
+ * - Respects spawn energy reserves during low-energy situations
+ *
+ * Queens are the primary logistics units for keeping spawn energy topped up.
+ */
+
 import { SPAWN_ENERGY_RESERVE } from "../constants";
 import { CreepRoles } from "../creeps/setups";
 import { getHatcheryInfo, shouldProtectHatchery } from "../utils/logistics";
 
 export const QUEEN_ROLE = CreepRoles.queen;
 
+/**
+ * Represents a potential energy deposit target with its free capacity.
+ */
 export interface TransferTarget {
     structure: StructureSpawn | StructureExtension | StructureTower | StructureLink | StructureStorage;
     freeCapacity: number;
 }
 
+/**
+ * Queen behavior implementation.
+ * Manages the refilling cycle and energy transfer logic.
+ */
 export const QueenBehavior = {
+    /**
+     * Main execution method called each tick.
+     * Toggles between refilling (collecting energy) and depositing modes.
+     */
     run(creep: Creep): void {
         const carrying = creep.store.getUsedCapacity(RESOURCE_ENERGY);
         const free = creep.store.getFreeCapacity(RESOURCE_ENERGY);
@@ -27,6 +50,11 @@ export const QueenBehavior = {
         }
     },
 
+    /**
+     * Collects energy from various sources with intelligent prioritization.
+     * Prefers hatchery batteries and links, then storage, then dropped resources.
+     * Falls back to harvesting from sources if nothing else available.
+     */
     withdrawEnergy(creep: Creep): void {
         const hatchery = getHatcheryInfo(creep.room);
         const structures: AnyStoreStructure[] = [];
@@ -100,6 +128,10 @@ export const QueenBehavior = {
         }
     },
 
+    /**
+     * Deposits energy into spawn structures, prioritizing those with less capacity.
+     * Falls back to batteries if hatchery energy is low, otherwise uses storage.
+     */
     depositEnergy(creep: Creep): void {
         const hatchery = getHatcheryInfo(creep.room);
         const battery = hatchery.batteries.find(candidate => candidate.store.getFreeCapacity(RESOURCE_ENERGY) > 0) ?? null;
@@ -121,6 +153,10 @@ export const QueenBehavior = {
         }
     },
 
+    /**
+     * Finds all valid deposit targets (spawns, extensions, towers) in the room.
+     * Sorts by free capacity (smallest first) for efficient filling.
+     */
     getDepositTargets(room: Room): TransferTarget[] {
         const spawnTargets: TransferTarget[] = [];
         const spawns = room.find(FIND_MY_SPAWNS);
@@ -142,6 +178,10 @@ export const QueenBehavior = {
         return spawnTargets;
     },
 
+    /**
+     * Selects the best structure to withdraw from based on weighted scoring.
+     * Considers energy available, distance, and structure type priority.
+     */
     pickStructureWithEnergy(creep: Creep, structures: AnyStoreStructure[], hatchery: ReturnType<typeof getHatcheryInfo>): AnyStoreStructure | null {
         let best: AnyStoreStructure | null = null;
         let highest = -Infinity;
@@ -162,6 +202,10 @@ export const QueenBehavior = {
         return best;
     },
 
+    /**
+     * Calculates priority weight for different structure types.
+     * Higher weights mean higher preference for withdrawal.
+     */
     structureWeight(structure: AnyStoreStructure, batteryIds: Set<Id<StructureContainer>>, hatcheryLink: StructureLink | null): number {
         if (batteryIds.has(structure.id as Id<StructureContainer>)) {
             return 4;
@@ -183,6 +227,9 @@ export const QueenBehavior = {
         }
     },
 
+    /**
+     * Finds the nearest active energy source as a last-resort fallback.
+     */
     getClosestActiveSource(creep: Creep): Source | null {
         const source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE);
         return source ?? null;

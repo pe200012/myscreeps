@@ -1,8 +1,29 @@
+/**
+ * Drone role: Static source harvesters that mine directly into containers or links.
+ *
+ * Behavior:
+ * - Claims a source and harvests continuously
+ * - Deposits energy into adjacent containers or links
+ * - Sits on container to prevent decay damage
+ * - Falls back to dropping or transferring to spawn if no infrastructure present
+ *
+ * Drones are the backbone of energy production, designed for maximum efficiency
+ * when paired with source containers and optional links.
+ */
+
 import { CreepRoles } from "../creeps/setups";
 
 export const DRONE_ROLE = CreepRoles.drone;
 
+/**
+ * Drone behavior implementation.
+ * Manages source assignment, harvesting, and energy transfer.
+ */
 export const DroneBehavior = {
+    /**
+     * Main execution method called each tick.
+     * Handles source assignment, harvesting, and depositing.
+     */
     run(creep: Creep): void {
         if (!creep.memory.sourceId) {
             const source = this.findSource(creep);
@@ -37,6 +58,10 @@ export const DroneBehavior = {
         this.deposit(creep, container, link ?? null);
     },
 
+    /**
+     * Deposits harvested energy, prioritizing link over container.
+     * Drops energy if container is full, or transfers to spawn as last resort.
+     */
     deposit(creep: Creep, container: StructureContainer | null, link: StructureLink | null): void {
         if (link && link.store.getFreeCapacity(RESOURCE_ENERGY) >= creep.store.getUsedCapacity(RESOURCE_ENERGY)) {
             const result = creep.transfer(link, RESOURCE_ENERGY);
@@ -67,6 +92,10 @@ export const DroneBehavior = {
         creep.drop(RESOURCE_ENERGY);
     },
 
+    /**
+     * Finds an available source for this drone to harvest.
+     * Attempts to avoid sources already assigned to other drones.
+     */
     findSource(creep: Creep): Source | null {
         const assigned = new Set(Object.values(Game.creeps)
             .filter(c => c !== creep && c.memory.role === DRONE_ROLE && c.memory.sourceId)
@@ -77,6 +106,10 @@ export const DroneBehavior = {
         return available[0] ?? creep.room.find(FIND_SOURCES)[0] ?? null;
     },
 
+    /**
+     * Locates and caches the container adjacent to the assigned source.
+     * Stores container ID in memory for future ticks.
+     */
     resolveContainer(creep: Creep, source: Source): StructureContainer | null {
         if (creep.memory.containerId) {
             const container = Game.getObjectById(creep.memory.containerId as Id<StructureContainer>);
@@ -94,6 +127,10 @@ export const DroneBehavior = {
         return container ?? null;
     },
 
+    /**
+     * Locates and caches the link near the assigned source.
+     * Stores link ID in memory for future ticks.
+     */
     resolveLink(creep: Creep, source: Source): StructureLink | null {
         if (creep.memory.linkId) {
             const link = Game.getObjectById(creep.memory.linkId as Id<StructureLink>);

@@ -1,14 +1,25 @@
+/**
+ * Main game loop entry point for Screeps automation.
+ * Orchestrates base planning, colony management, defense tracking, and fallback behaviors.
+ */
+
 import { BasePlanner } from "./planner/BasePlanner";
 import { runColonies } from "./colony/ColonyManager";
 import { ErrorMapper } from "./utils/ErrorMapper";
 import { ALLY_USERNAMES } from "./constants";
 
+/**
+ * Primary game loop wrapped with error handling.
+ * Executes every tick to manage all owned rooms and creeps.
+ */
 export const loop = ErrorMapper.wrapLoop(() => {
     cleanupMemory();
 
+    // Track hostile creeps by room for defense coordination
     const hostilesByRoom: Record<string, Creep[]> = {};
     const ownedRooms = Object.values(Game.rooms).filter(room => room.controller?.my);
 
+    // Update defense memory and track hostiles for each owned room
     for (const room of ownedRooms) {
         BasePlanner.run(room);
 
@@ -17,10 +28,12 @@ export const loop = ErrorMapper.wrapLoop(() => {
         });
         hostilesByRoom[room.name] = hostiles;
 
+        // Initialize defense memory if not present
         if (!room.memory.defense) {
             room.memory.defense = { lastHostileSeen: 0, threatLevel: 0 };
         }
 
+        // Update threat tracking based on current hostile presence
         if (hostiles.length > 0) {
             room.memory.defense.lastHostileSeen = Game.time;
             room.memory.defense.threatLevel = hostiles.length;
@@ -29,6 +42,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
         }
     }
 
+    // Run all colony overlords and track which creeps were handled
     const handled = runColonies(ownedRooms);
 
     // Fallback behavior: ensure any straggler creeps at least defend themselves
@@ -42,6 +56,10 @@ export const loop = ErrorMapper.wrapLoop(() => {
     }
 });
 
+/**
+ * Cleans up memory for dead creeps.
+ * Prevents memory leaks by removing entries for creeps that no longer exist.
+ */
 function cleanupMemory(): void {
     for (const name in Memory.creeps) {
         if (!(name in Game.creeps)) {
@@ -50,6 +68,13 @@ function cleanupMemory(): void {
     }
 }
 
+/**
+ * Default fallback behavior for creeps not handled by overlords.
+ * Attempts to defend against hostiles or defaults to upgrading the controller.
+ *
+ * @param creep - The creep to apply fallback behavior to
+ * @param hostilesByRoom - Map of room names to hostile creeps for defense coordination
+ */
 function defaultFallback(creep: Creep, hostilesByRoom: Record<string, Creep[]>): void {
     const hostiles = hostilesByRoom[creep.memory.room ?? creep.room.name] ?? [];
     if (hostiles.length > 0) {

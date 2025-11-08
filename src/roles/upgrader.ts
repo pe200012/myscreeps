@@ -1,8 +1,28 @@
+/**
+ * Upgrader role: Dedicated controller upgrading units for RCL progression.
+ *
+ * Behavior:
+ * - Refills from storage, containers, nearby upgrade links, or sources
+ * - Upgrades controller continuously
+ * - Typically operates near the controller for efficiency
+ *
+ * Upgraders are spawned in quantities based on available energy and RCL needs.
+ * RCL 8 setups maximize work parts to maintain 15 upgrade power.
+ */
+
 import { CreepRoles } from "../creeps/setups";
 
 export const UPGRADER_ROLE = CreepRoles.upgrader;
 
+/**
+ * Upgrader behavior implementation.
+ * Manages refilling and controller upgrading.
+ */
 export const UpgraderBehavior = {
+    /**
+     * Main execution method called each tick.
+     * Toggles between refilling and upgrading modes.
+     */
     run(creep: Creep): void {
         if (creep.memory.working === undefined) {
             creep.memory.working = false;
@@ -22,6 +42,9 @@ export const UpgraderBehavior = {
         }
     },
 
+    /**
+     * Upgrades the room controller.
+     */
     upgrade(creep: Creep): void {
         const controller = creep.room.controller;
         if (!controller) {
@@ -32,6 +55,10 @@ export const UpgraderBehavior = {
         }
     },
 
+    /**
+     * Refills energy from available sources with priority:
+     * storage → containers → upgrade link → active sources
+     */
     refill(creep: Creep): void {
         const storage = creep.room.storage;
         if (storage && storage.store[RESOURCE_ENERGY] > 0) {
@@ -66,6 +93,10 @@ export const UpgraderBehavior = {
         }
     },
 
+    /**
+     * Finds a link within range 3 of the controller for efficient refilling.
+     * Typically paired with manager delivering energy to this link.
+     */
     getUpgradeLink(creep: Creep): StructureLink | null {
         const controller = creep.room.controller;
         if (!controller) {
