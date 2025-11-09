@@ -4,7 +4,7 @@
         "lib": [
             "esnext"
         ],
-        "target": "es2020",
+        "target": "es2018",
         "moduleResolution": "bundler",
         "outDir": "dist",
         "baseUrl": "src/",
@@ -25,7 +25,11 @@
         "strictBindCallApply": true,
         "strictPropertyInitialization": true,
         "alwaysStrict": true,
-        "types": ["@types/screeps", "@types/lodash", "bun-types"]
+        "types": [
+            "@types/screeps",
+            "@types/lodash",
+            "bun-types"
+        ]
     },
     "exclude": [
         "node_modules",

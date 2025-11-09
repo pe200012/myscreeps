@@ -66,6 +66,10 @@ export class CreepSetup {
         const suffixCost = bodyCost(suffix);
         const patternCost = bodyCost(pattern);
 
+        if (energyCapacity < prefixCost) {
+            return [];
+        }
+
         if (energyCapacity < prefixCost + suffixCost && patternCost === 0) {
             return [];
         }
@@ -105,7 +109,7 @@ export class CreepSetup {
             }
         }
 
-        if (!patternAdded && pattern.length > 0) {
+        if (!patternAdded && pattern.length > 0 && prefixCost + suffixCost + patternCost <= energyCapacity) {
             body = body.concat(pattern);
             patternAdded = true;
         }
@@ -117,10 +121,15 @@ export class CreepSetup {
 
         if (proportionalPrefixSuffix && suffix.length > 0) {
             for (let i = 0; i < repeats; i++) {
+                if (bodyCost(body) + suffixCost > energyCapacity) {
+                    break;
+                }
                 body = body.concat(suffix);
             }
         } else {
-            body = body.concat(suffix);
+            if (bodyCost(body) + suffixCost <= energyCapacity) {
+                body = body.concat(suffix);
+            }
         }
 
         // If no pattern parts were added due to low energy and we still have capacity for a single pattern, add one

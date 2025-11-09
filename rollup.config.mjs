@@ -31,19 +31,19 @@ export default {
         resolve({ rootDir: "src" }),
         commonjs(),
         typescript({ tsconfig: "./tsconfig.json" }),
-        terser({
-            compress: {
-                passes: 2,
-                drop_console: false,
-            },
-            mangle: {
-                toplevel: true,
-                reserved: ["_"],
-            },
-            format: {
-                comments: false,
-            },
-        }),
+        // terser({
+        //     compress: {
+        //         passes: 2,
+        //         drop_console: false,
+        //     },
+        //     mangle: {
+        //         toplevel: true,
+        //         reserved: ["_"],
+        //     },
+        //     format: {
+        //         comments: false,
+        //     },
+        // }),
         screeps({ config: cfg, dryRun: cfg == null }),
     ],
 };

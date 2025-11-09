@@ -143,7 +143,8 @@ export class SpawnManager {
                 }
 
                 const { priority, order } = affordable;
-                const body = order.setup.generateBody(room.energyCapacityAvailable);
+                const budget = Math.min(room.energyAvailable, room.energyCapacityAvailable);
+                const body = order.setup.generateBody(budget);
                 if (body.length === 0) {
                     this.consume(priority);
                     continue;
@@ -193,7 +194,8 @@ export class SpawnManager {
             }
 
             const order = orders[0];
-            const body = order.setup.generateBody(energyCapacityAvailable);
+            const budget = Math.min(energyAvailable, energyCapacityAvailable);
+            const body = order.setup.generateBody(budget);
             if (body.length === 0) {
                 // Invalid setup, will be consumed in run()
                 return { priority, order };

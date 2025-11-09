@@ -13,7 +13,7 @@ import {
     SUPPORT_STRUCTURES
 } from "./layouts";
 
-const PLANNER_VERSION = 1;
+const PLANNER_VERSION = 2;
 const ROOM_SIZE = 50;
 const MAX_STRUCTURE_SITES_PER_TICK = 3;
 const MAX_ROAD_SITES_PER_TICK = 5;
@@ -59,9 +59,10 @@ export class BasePlanner {
         this.ensureRoadLevels(plan);
         this.maintain(room, plan);
 
-        if (Game.time % 10 === 0) {
-            this.visualize(room, plan);
-        }
+        // if (Game.time % 10 === 0) {
+        //     this.visualize(room, plan);
+        // }
+        this.visualize(room, plan);
     }
 
     private static computePlan(room: Room): PlannerMemory | null {

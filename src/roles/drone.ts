@@ -68,7 +68,7 @@ export const DroneBehavior = {
         if (creep.store.getFreeCapacity() > 0) {
             const harvestResult = creep.harvest(source);
             if (harvestResult === ERR_NOT_IN_RANGE) {
-                creep.moveTo(source, { reusePath: 3, visualizePathStyle: { stroke: "#ffaa00" } });
+                creep.moveTo(source, { reusePath: 6, visualizePathStyle: { stroke: "#ffaa00" } });
             }
             if (harvestResult === ERR_NOT_ENOUGH_RESOURCES && container && creep.store.getUsedCapacity() > 0) {
                 this.deposit(creep, container, link ?? null);
@@ -150,6 +150,28 @@ export const DroneBehavior = {
 
         // Last resort: Drop energy on the ground
         if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
+            // Before dropping, try to give energy to nearby workers or upgraders
+            const nearbyCreep = creep.pos.findClosestByRange(FIND_MY_CREEPS, {
+                filter: (c) =>
+                    (c.memory.role === CreepRoles.worker || c.memory.role === CreepRoles.upgrader) &&
+                    c.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+            });
+
+            if (nearbyCreep) {
+                const result = creep.transfer(nearbyCreep, RESOURCE_ENERGY);
+                if (result === ERR_NOT_IN_RANGE) {
+                    creep.moveTo(nearbyCreep, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#00ff00" } });
+                    return;
+                }
+                if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
+                    // Continue depositing if still have energy
+                    this.deposit(creep, container, link);
+                    return;
+                }
+                return;
+            }
+
+            // Truly last resort: drop it
             creep.drop(RESOURCE_ENERGY);
         }
     },

@@ -19,9 +19,16 @@ export class TransportOverlord extends Overlord {
         const droppedEnergy = room.find(FIND_DROPPED_RESOURCES, {
             filter: resource => resource.resourceType === RESOURCE_ENERGY && resource.amount > 100
         });
-        const demand = Math.max(containers.length, Math.ceil(droppedEnergy.length / 2));
-        if (demand === 0 && !room.storage) {
+        let demand = Math.max(containers.length, Math.ceil(droppedEnergy.length / 2));
+
+        const hasEnergyInfrastructure = room.storage != null || this.hasEnergyContainers(room);
+        if (!hasEnergyInfrastructure && demand === 0) {
             return;
+        }
+
+        if (demand === 0 && hasEnergyInfrastructure) {
+            // Ensure at least one logistics creep keeps energy flowing from containers/batteries
+            demand = 1;
         }
 
         const setup = room.controller && room.controller.level >= 4 ? CreepSetups.transport.default : CreepSetups.transport.early;
@@ -47,5 +54,18 @@ export class TransportOverlord extends Overlord {
             filter: (structure): structure is StructureContainer =>
                 structure.structureType === STRUCTURE_CONTAINER && structure.store.getUsedCapacity(RESOURCE_ENERGY) > 0
         });
+    }
+
+    private hasEnergyContainers(room: Room): boolean {
+        return room.find(FIND_STRUCTURES, {
+            filter: (structure): structure is StructureContainer => {
+                if (structure.structureType !== STRUCTURE_CONTAINER) {
+                    return false;
+                }
+                const nearSource = structure.pos.findInRange(FIND_SOURCES, 1).length > 0;
+                const nearSpawn = structure.pos.findInRange(FIND_MY_SPAWNS, 2).length > 0;
+                return nearSource || nearSpawn;
+            }
+        }).length > 0;
     }
 }
