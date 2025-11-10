@@ -156,7 +156,7 @@ export const TransportBehavior = {
         }
 
         const room = creep.room;
-        const adjacentWorkers = creep.pos.findInRange(FIND_MY_CREEPS, 5, {
+        const adjacentWorkers = creep.pos.findInRange(FIND_MY_CREEPS, 20, {
             filter: c => c.memory.role === CreepRoles.worker && c.store.getFreeCapacity(RESOURCE_ENERGY) > 0
         });
         if (adjacentWorkers.length > 0) {
