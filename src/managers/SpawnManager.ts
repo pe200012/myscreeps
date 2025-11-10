@@ -146,8 +146,8 @@ export class SpawnManager {
                 const budget = Math.min(room.energyAvailable, room.energyCapacityAvailable);
                 const body = order.setup.generateBody(budget);
                 if (body.length === 0) {
-                    this.consume(priority);
-                    continue;
+                    // Not enough energy yet; try again next tick
+                    return;
                 }
 
                 const name = this.generateName(order.role);
@@ -197,8 +197,14 @@ export class SpawnManager {
             const budget = Math.min(energyAvailable, energyCapacityAvailable);
             const body = order.setup.generateBody(budget);
             if (body.length === 0) {
-                // Invalid setup, will be consumed in run()
-                return { priority, order };
+                const fullBody = order.setup.generateBody(energyCapacityAvailable);
+                if (fullBody.length === 0) {
+                    // Invalid configuration; drop the order
+                    this.consume(priority);
+                    continue;
+                }
+                // Not enough energy yet; check next priority but keep the order queued
+                continue;
             }
 
             const cost = bodyCost(body);

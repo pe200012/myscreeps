@@ -25,8 +25,14 @@ export const SpawnPriorities = {
     /** Managers handle storage/terminal/link throughput */
     manager: 60,
 
+    /** Claimers secure new rooms quickly once expansion is ordered */
+    claimer: 70,
+
     /** Transports move harvested energy to storage/spawns */
     transport: 90,
+
+    /** Pioneers bootstrap new colonies after claimers succeed */
+    pioneer: 110,
 
     /** Standby defenders fall behind eco unless an emergency elevates them */
     defender: 240,

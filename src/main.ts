@@ -7,12 +7,14 @@ import { BasePlanner } from "./planner/BasePlanner";
 import { runColonies } from "./colony/ColonyManager";
 import { ErrorMapper } from "./utils/ErrorMapper";
 import { ALLY_USERNAMES } from "./constants";
+import { preTick, reconcileTraffic } from "./utils/CartographerIntegration";
 
 /**
  * Primary game loop wrapped with error handling.
  * Executes every tick to manage all owned rooms and creeps.
  */
 export const loop = ErrorMapper.wrapLoop(() => {
+    preTick();
     cleanupMemory();
 
     // Track hostile creeps by room for defense coordination
@@ -54,6 +56,8 @@ export const loop = ErrorMapper.wrapLoop(() => {
             defaultFallback(creep, hostilesByRoom);
         }
     }
+
+    reconcileTraffic();
 });
 
 /**

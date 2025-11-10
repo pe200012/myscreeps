@@ -20,9 +20,9 @@ export class UpgraderOverlord extends Overlord {
 
         let quantity = 1;
         if (controllerLevel < 8) {
-            quantity = hasStorage ? 2 : 1;
+            quantity = hasStorage ? 4 : 3;
         } else {
-            quantity = room.storage && room.storage.store.getUsedCapacity(RESOURCE_ENERGY) > 200000 ? 2 : 1;
+            quantity = room.storage && room.storage.store.getUsedCapacity(RESOURCE_ENERGY) > 200000 ? 5 : 4;
         }
 
         this.wishlist(quantity, setup, {

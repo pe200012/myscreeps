@@ -23,11 +23,13 @@ export class DroneOverlord extends Overlord {
             const setup = this.chooseSetup(room, source, emergency);
             const container = this.findMiningContainer(source);
             const link = this.findMiningLink(source);
+            const availableSpots = this.countMiningSpots(source);
+            const desiredDrones = Math.min(availableSpots, MIN_DRONES_PER_SOURCE);
 
             this.ensureTagged(setup, {
                 tag: `${this.ref}:source:${source.id}`,
                 match: creep => creep.memory.sourceId === source.id,
-                quantity: MIN_DRONES_PER_SOURCE,
+                quantity: desiredDrones,
                 prespawn: DRONE_PRESPAWN,
                 priority: emergency ? SpawnPriorities.emergency : SpawnPriorities.drone,
                 memoryFactory: () => ({
@@ -73,5 +75,34 @@ export class DroneOverlord extends Overlord {
                 filter: structure => structure.structureType === STRUCTURE_LINK
             })
             .shift() as StructureLink | undefined;
+    }
+
+    private countMiningSpots(source: Source): number {
+        const terrain = source.room.getTerrain();
+        let count = 0;
+
+        // Check all 8 adjacent positions around the source
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                if (dx === 0 && dy === 0) {
+                    continue; // Skip the source itself
+                }
+
+                const x = source.pos.x + dx;
+                const y = source.pos.y + dy;
+
+                // Check if position is within room bounds
+                if (x <= 0 || x >= 49 || y <= 0 || y >= 49) {
+                    continue;
+                }
+
+                // Check if position is not a wall
+                if (terrain.get(x, y) !== TERRAIN_MASK_WALL) {
+                    count++;
+                }
+            }
+        }
+
+        return count;
     }
 }

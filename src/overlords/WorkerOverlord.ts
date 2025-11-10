@@ -1,7 +1,7 @@
-import { WORKER_PRESPAWN, WORKER_REPAIR_THRESHOLD, WORKER_WALL_TARGET } from "../constants";
+import { WORKER_PRESPAWN, WORKER_WALL_TARGET } from "../constants";
 import { CreepRoles, CreepSetups } from "../creeps/setups";
 import { SpawnPriorities } from "../priorities";
-import { WorkerBehavior } from "../roles/worker";
+import { WorkerBehavior, getRampartTarget, getRepairFraction, getWallTarget } from "../roles/worker";
 import { Overlord } from "./Overlord";
 
 export class WorkerOverlord extends Overlord {
@@ -31,23 +31,28 @@ export class WorkerOverlord extends Overlord {
 
     run(handled: Set<string>): void {
         for (const creep of this.creeps) {
-            WorkerBehavior.run(creep, { repairThreshold: WORKER_REPAIR_THRESHOLD, wallTarget: WORKER_WALL_TARGET });
+            WorkerBehavior.run(creep, { wallTarget: WORKER_WALL_TARGET });
             handled.add(creep.name);
         }
     }
 
     private countDamagedStructures(room: Room): number {
+        const repairFraction = getRepairFraction(room.controller?.level);
         return room.find(FIND_STRUCTURES, {
             filter: structure => {
                 if (structure.structureType === STRUCTURE_WALL || structure.structureType === STRUCTURE_RAMPART) {
-                    return structure.hits < WORKER_WALL_TARGET;
+                    if (structure.structureType === STRUCTURE_WALL) {
+                        return structure.hits < getWallTarget(WORKER_WALL_TARGET, repairFraction);
+                    }
+                    const rampart = structure as StructureRampart;
+                    return (!!rampart.my) && rampart.hits < getRampartTarget(rampart, WORKER_WALL_TARGET, repairFraction);
                 }
                 if (!("hits" in structure) || !("hitsMax" in structure)) {
                     return false;
                 }
                 const hits = (structure as Structure).hits;
                 const hitsMax = (structure as Structure).hitsMax ?? 1;
-                return hits / hitsMax < WORKER_REPAIR_THRESHOLD;
+                return hits < hitsMax * repairFraction;
             }
         }).length;
     }

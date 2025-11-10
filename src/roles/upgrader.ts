@@ -51,7 +51,14 @@ export const UpgraderBehavior = {
             return;
         }
         if (creep.upgradeController(controller) === ERR_NOT_IN_RANGE) {
-            creep.moveTo(controller, { reusePath: 3, visualizePathStyle: { stroke: "#99c1f1" } });
+            const distance = creep.pos.getRangeTo(controller);
+            creep.moveTo(controller, {
+                reusePath: 3,
+                range: 3,
+                avoidCreeps: distance <= 5,
+                priority: 5,
+                visualizePathStyle: { stroke: "#99c1f1" }
+            });
         }
     },
 

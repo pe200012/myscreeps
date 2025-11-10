@@ -20,10 +20,7 @@ export const WORKER_ROLE = CreepRoles.worker;
  * Configuration options for worker behavior.
  */
 export interface WorkerBehaviorOptions {
-    /** Hit points ratio below which structures should be repaired (0.0-1.0) */
-    repairThreshold: number;
-
-    /** Target hit points for walls and ramparts */
+    /** Maximum hit points workers should push walls toward at full strength */
     wallTarget: number;
 }
 
@@ -52,15 +49,16 @@ export const WorkerBehavior = {
             if (this.tryBuild(creep)) {
                 return;
             }
-            // Clear build target if not building anymore
-            delete creep.memory.buildTarget;
             if (this.tryRepair(creep, options)) {
                 return;
             }
+            // Clear build target if not building anymore
+            delete creep.memory.buildTarget;
             this.upgrade(creep);
         } else {
             // Clear build target when gathering
             delete creep.memory.buildTarget;
+            delete creep.memory.repairTarget;
             this.gather(creep);
         }
     },
@@ -182,7 +180,14 @@ export const WorkerBehavior = {
 
         const result = creep.build(target);
         if (result === ERR_NOT_IN_RANGE) {
-            creep.moveTo(target, { reusePath: 3, visualizePathStyle: { stroke: "#ffffff" } });
+            const distance = creep.pos.getRangeTo(target);
+            creep.moveTo(target, {
+                reusePath: 3,
+                range: 3,
+                avoidCreeps: distance <= 5,
+                priority: 6,
+                visualizePathStyle: { stroke: "#ffffff" }
+            });
         } else if (result === OK || result === ERR_INVALID_TARGET) {
             // Clear build target when done or site is gone
             delete creep.memory.buildTarget;
@@ -192,33 +197,79 @@ export const WorkerBehavior = {
 
     /**
      * Attempts to repair the nearest damaged structure.
-     * Walls and ramparts are repaired to wallTarget HP.
-     * Other structures are repaired when below repairThreshold ratio.
+    * Walls and ramparts are repaired toward a level-dependent share of wallTarget.
+    * Other structures are repaired toward a level-dependent share of their max hits.
      *
      * @returns true if a repair target was found and targeted
      */
-    tryRepair(creep: Creep, { repairThreshold, wallTarget }: WorkerBehaviorOptions): boolean {
-        const target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-            filter: structure => {
-                if (structure.structureType === STRUCTURE_WALL || structure.structureType === STRUCTURE_RAMPART) {
-                    return structure.hits < wallTarget;
-                }
-                if (!("hits" in structure) || !("hitsMax" in structure)) {
-                    return false;
-                }
-                const hits = (structure as Structure).hits;
-                const hitsMax = (structure as Structure).hitsMax ?? 1;
-                return hits / hitsMax < repairThreshold;
-            }
-        });
+    tryRepair(creep: Creep, { wallTarget }: WorkerBehaviorOptions): boolean {
+        const repairFraction = getRepairFraction(creep.room.controller?.level);
+        const target = this.resolveRepairTarget(creep, repairFraction, wallTarget);
         if (!target) {
             return false;
         }
         const result = creep.repair(target as Structure);
         if (result === ERR_NOT_IN_RANGE) {
-            creep.moveTo(target, { reusePath: 3, visualizePathStyle: { stroke: "#99c1f1" } });
+            const distance = creep.pos.getRangeTo(target);
+            creep.moveTo(target, {
+                reusePath: 3,
+                range: target.structureType === STRUCTURE_ROAD ? 1 : 3,
+                avoidCreeps: distance <= 2,
+                priority: 5,
+                visualizePathStyle: { stroke: "#99c1f1" }
+            });
+        } else if (result === OK) {
+            this.pruneRepairTarget(creep, target as Structure, repairFraction, wallTarget);
+        } else if (result === ERR_INVALID_TARGET) {
+            delete creep.memory.repairTarget;
         }
         return true;
+    },
+
+    resolveRepairTarget(creep: Creep, repairFraction: number, wallTarget: number): Structure | null {
+        const existing = creep.memory.repairTarget ? Game.getObjectById(creep.memory.repairTarget) : undefined;
+        if (existing && this.shouldKeepRepairing(existing as Structure, repairFraction, wallTarget)) {
+            return existing as Structure;
+        }
+        delete creep.memory.repairTarget;
+
+        const rampart = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+            filter: structure => isDamagedRampart(structure as Structure, repairFraction, wallTarget)
+        }) as Structure | null;
+        if (rampart) {
+            creep.memory.repairTarget = rampart.id as Id<Structure>;
+            return rampart;
+        }
+
+        const structure = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+            filter: structure => isRepairableStructure(structure as Structure, repairFraction)
+        }) as Structure | null;
+        if (structure) {
+            creep.memory.repairTarget = structure.id as Id<Structure>;
+            return structure;
+        }
+
+        return null;
+    },
+
+    shouldKeepRepairing(structure: Structure, repairFraction: number, wallTarget: number): boolean {
+        if (structure.structureType === STRUCTURE_WALL) {
+            return structure.hits < getWallTarget(wallTarget, repairFraction);
+        }
+        if (structure.structureType === STRUCTURE_RAMPART) {
+            const rampart = structure as StructureRampart;
+            return rampart.hits < getRampartTarget(rampart, wallTarget, repairFraction);
+        }
+        if (!structure.hitsMax) {
+            return false;
+        }
+        return structure.hits < structure.hitsMax * repairFraction;
+    },
+
+    pruneRepairTarget(creep: Creep, structure: Structure, repairFraction: number, wallTarget: number): void {
+        if (!this.shouldKeepRepairing(structure, repairFraction, wallTarget)) {
+            delete creep.memory.repairTarget;
+        }
     },
 
     /**
@@ -230,7 +281,56 @@ export const WorkerBehavior = {
             return;
         }
         if (creep.upgradeController(controller) === ERR_NOT_IN_RANGE) {
-            creep.moveTo(controller, { reusePath: 3, visualizePathStyle: { stroke: "#99c1f1" } });
+            const distance = creep.pos.getRangeTo(controller);
+            creep.moveTo(controller, {
+                reusePath: 3,
+                range: 3,
+                avoidCreeps: distance <= 2,
+                priority: 4,
+                visualizePathStyle: { stroke: "#99c1f1" }
+            });
         }
     }
 };
+
+function isRepairableStructure(structure: Structure, repairFraction: number): boolean {
+    if (!structure.hitsMax) {
+        return false;
+    }
+    if (structure.structureType === STRUCTURE_WALL || structure.structureType === STRUCTURE_RAMPART) {
+        return false;
+    }
+    return structure.hits < structure.hitsMax * repairFraction;
+}
+
+function isDamagedRampart(structure: Structure, repairFraction: number, wallTarget: number): structure is StructureRampart | StructureWall {
+    if (structure.structureType === STRUCTURE_RAMPART) {
+        const rampart = structure as StructureRampart;
+        const target = getRampartTarget(rampart, wallTarget, repairFraction);
+        return !!rampart.my && rampart.hits < target;
+    }
+    if (structure.structureType === STRUCTURE_WALL) {
+        return structure.hits < getWallTarget(wallTarget, repairFraction);
+    }
+    return false;
+}
+
+export function getRampartTarget(rampart: StructureRampart, wallTarget: number, repairFraction: number): number {
+    const cap = Math.min(rampart.hitsMax ?? wallTarget, wallTarget);
+    return cap * repairFraction;
+}
+
+export function getWallTarget(wallTarget: number, repairFraction: number): number {
+    return wallTarget * repairFraction;
+}
+
+export function getRepairFraction(level?: number): number {
+    if (!level || level < 5) {
+        return 0.5;
+    }
+    if (level < 6) {
+        return 0.8;
+    }
+    return 1;
+}
+

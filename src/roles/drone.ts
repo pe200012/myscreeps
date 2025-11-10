@@ -82,77 +82,87 @@ export const DroneBehavior = {
     /**
      * Deposits harvested energy, prioritizing link over container.
      * If primary targets are full, finds alternative structures (extensions, storage, etc).
-     * Continues depositing until all energy is transferred or moving to target.
+     * Continues depositing in same tick if energy > 50% capacity and targets available.
      * Drops energy as last resort.
      */
     deposit(creep: Creep, container: StructureContainer | null, link: StructureLink | null): void {
-        // Priority 1: Link (if has space)
-        if (link && link.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
-            const result = creep.transfer(link, RESOURCE_ENERGY);
-            if (result === ERR_NOT_IN_RANGE) {
-                creep.moveTo(link, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
-                return;
-            }
-            if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                // Continue depositing if still have energy
-                this.deposit(creep, container, link);
-                return;
-            }
-            return;
-        }
+        const usedIds = new Set<string>();
+        let attempts = 0;
+        const maxAttempts = 10; // Safety limit to prevent infinite loops
 
-        // Priority 2: Container (if has space)
-        if (container && container.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
-            const result = creep.transfer(container, RESOURCE_ENERGY);
-            if (result === ERR_NOT_IN_RANGE) {
-                creep.moveTo(container, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
-                return;
-            }
-            if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                // Continue depositing if still have energy
-                this.deposit(creep, container, link);
-                return;
-            }
-            return;
-        }
+        while (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0 && attempts < maxAttempts) {
+            attempts++;
+            const energyRatio = creep.store.getUsedCapacity(RESOURCE_ENERGY) / creep.store.getCapacity(RESOURCE_ENERGY);
+            const shouldContinue = energyRatio > 0.5;
 
-        // Priority 3: Find alternative nearby structures that need energy
-        const alternativeTarget = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-            filter: (structure) => {
-                if (structure.structureType === STRUCTURE_EXTENSION ||
-                    structure.structureType === STRUCTURE_SPAWN) {
-                    return (structure as StructureExtension | StructureSpawn).store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+            // Priority 1: Link (if has space and not already used)
+            if (link && !usedIds.has(link.id) && link.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+                const result = creep.transfer(link, RESOURCE_ENERGY);
+                if (result === ERR_NOT_IN_RANGE) {
+                    creep.moveTo(link, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
+                    return;
                 }
-                if (structure.structureType === STRUCTURE_STORAGE ||
-                    structure.structureType === STRUCTURE_CONTAINER) {
-                    return (structure as StructureStorage | StructureContainer).store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+                if (result === OK) {
+                    usedIds.add(link.id);
+                    if (!shouldContinue) return;
+                    continue;
                 }
-                if (structure.structureType === STRUCTURE_TOWER) {
-                    return (structure as StructureTower).store.getFreeCapacity(RESOURCE_ENERGY) > 200;
-                }
-                return false;
-            }
-        }) as StructureExtension | StructureSpawn | StructureStorage | StructureContainer | StructureTower | null;
-
-        if (alternativeTarget) {
-            const result = creep.transfer(alternativeTarget, RESOURCE_ENERGY);
-            if (result === ERR_NOT_IN_RANGE) {
-                creep.moveTo(alternativeTarget, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
                 return;
             }
-            if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                // Continue depositing if still have energy
-                this.deposit(creep, container, link);
+
+            // Priority 2: Container (if has space and not already used)
+            if (container && !usedIds.has(container.id) && container.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+                const result = creep.transfer(container, RESOURCE_ENERGY);
+                if (result === ERR_NOT_IN_RANGE) {
+                    creep.moveTo(container, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
+                    return;
+                }
+                if (result === OK) {
+                    usedIds.add(container.id);
+                    if (!shouldContinue) return;
+                    continue;
+                }
                 return;
             }
-            return;
-        }
 
-        // Last resort: Drop energy on the ground
-        if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-            // Before dropping, try to give energy to nearby workers or upgraders
+            // Priority 3: Find alternative nearby structures that need energy
+            const alternativeTarget = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                filter: (structure) => {
+                    if (usedIds.has(structure.id)) return false;
+
+                    if (structure.structureType === STRUCTURE_EXTENSION ||
+                        structure.structureType === STRUCTURE_SPAWN) {
+                        return (structure as StructureExtension | StructureSpawn).store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+                    }
+                    if (structure.structureType === STRUCTURE_STORAGE ||
+                        structure.structureType === STRUCTURE_CONTAINER) {
+                        return (structure as StructureStorage | StructureContainer).store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+                    }
+                    if (structure.structureType === STRUCTURE_TOWER) {
+                        return (structure as StructureTower).store.getFreeCapacity(RESOURCE_ENERGY) > 200;
+                    }
+                    return false;
+                }
+            }) as StructureExtension | StructureSpawn | StructureStorage | StructureContainer | StructureTower | null;
+
+            if (alternativeTarget) {
+                const result = creep.transfer(alternativeTarget, RESOURCE_ENERGY);
+                if (result === ERR_NOT_IN_RANGE) {
+                    creep.moveTo(alternativeTarget, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
+                    return;
+                }
+                if (result === OK) {
+                    usedIds.add(alternativeTarget.id);
+                    if (!shouldContinue) return;
+                    continue;
+                }
+                return;
+            }
+
+            // Priority 4: Try to give energy to nearby workers or upgraders
             const nearbyCreep = creep.pos.findClosestByRange(FIND_MY_CREEPS, {
                 filter: (c) =>
+                    !usedIds.has(c.id) &&
                     (c.memory.role === CreepRoles.worker || c.memory.role === CreepRoles.upgrader) &&
                     c.store.getFreeCapacity(RESOURCE_ENERGY) > 0
             });
@@ -163,16 +173,19 @@ export const DroneBehavior = {
                     creep.moveTo(nearbyCreep, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#00ff00" } });
                     return;
                 }
-                if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                    // Continue depositing if still have energy
-                    this.deposit(creep, container, link);
-                    return;
+                if (result === OK) {
+                    usedIds.add(nearbyCreep.id);
+                    if (!shouldContinue) return;
+                    continue;
                 }
                 return;
             }
 
-            // Truly last resort: drop it
-            creep.drop(RESOURCE_ENERGY);
+            // No more targets available, drop remaining energy
+            if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
+                creep.drop(RESOURCE_ENERGY);
+            }
+            return;
         }
     },
 

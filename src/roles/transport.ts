@@ -62,6 +62,7 @@ export const TransportBehavior = {
      * Collects energy from various sources with intelligent prioritization.
      * Prefers storage link, then storage itself, then containers, then dropped resources.
      * Avoids depleting hatchery batteries when reserve protection is active.
+     * Only withdraws from containers if spawn/extension capacity exists.
      */
     collect(creep: Creep): void {
         const room = creep.room;
@@ -84,37 +85,52 @@ export const TransportBehavior = {
             return;
         }
 
-        const batteryIds = new Set(hatchery.batteries.map(battery => battery.id));
-        const containerCandidates = room.find(FIND_STRUCTURES, {
-            filter: (structure): structure is StructureContainer => {
-                if (structure.structureType !== STRUCTURE_CONTAINER) {
-                    return false;
-                }
-                if (protectReserve && batteryIds.has(structure.id)) {
-                    return false;
-                }
-                return structure.store.getUsedCapacity(RESOURCE_ENERGY) > 100;
-            }
-        });
+        // Check if there's demand for energy in spawns/extensions or workers/upgraders
+        const spawnDemand = room.find(FIND_MY_SPAWNS).some(s => s.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
+        const extensionDemand = room.find(FIND_MY_STRUCTURES, {
+            filter: s => s.structureType === STRUCTURE_EXTENSION &&
+                (s as StructureExtension).store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        }).length > 0;
+        const workerDemand = room.find(FIND_MY_CREEPS, {
+            filter: c => (c.memory.role === CreepRoles.worker || c.memory.role === CreepRoles.upgrader) &&
+                c.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        }).length > 0;
+        const hasEnergyDemand = spawnDemand || extensionDemand || workerDemand;
 
-        if (!protectReserve) {
-            for (const battery of hatchery.batteries) {
-                if (battery.store.getUsedCapacity(RESOURCE_ENERGY) > 200) {
-                    containerCandidates.push(battery);
+        // Collect from containers if there's any energy demand
+        if (hasEnergyDemand) {
+            const batteryIds = new Set(hatchery.batteries.map(battery => battery.id));
+            const containerCandidates = room.find(FIND_STRUCTURES, {
+                filter: (structure): structure is StructureContainer => {
+                    if (structure.structureType !== STRUCTURE_CONTAINER) {
+                        return false;
+                    }
+                    if (protectReserve && batteryIds.has(structure.id)) {
+                        return false;
+                    }
+                    return structure.store.getUsedCapacity(RESOURCE_ENERGY) > 100;
                 }
-            }
-        }
-
-        if (containerCandidates.length > 0) {
-            const target = containerCandidates.reduce((best, current) => {
-                const bestScore = best.store.getUsedCapacity(RESOURCE_ENERGY) - creep.pos.getRangeTo(best) * 10;
-                const currentScore = current.store.getUsedCapacity(RESOURCE_ENERGY) - creep.pos.getRangeTo(current) * 10;
-                return currentScore > bestScore ? current : best;
             });
-            if (creep.withdraw(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                creep.moveTo(target, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
+
+            if (!protectReserve) {
+                for (const battery of hatchery.batteries) {
+                    if (battery.store.getUsedCapacity(RESOURCE_ENERGY) > 200) {
+                        containerCandidates.push(battery);
+                    }
+                }
             }
-            return;
+
+            if (containerCandidates.length > 0) {
+                const target = containerCandidates.reduce((best, current) => {
+                    const bestScore = best.store.getUsedCapacity(RESOURCE_ENERGY) - creep.pos.getRangeTo(best) * 10;
+                    const currentScore = current.store.getUsedCapacity(RESOURCE_ENERGY) - creep.pos.getRangeTo(current) * 10;
+                    return currentScore > bestScore ? current : best;
+                });
+                if (creep.withdraw(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                    creep.moveTo(target, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffaa00" } });
+                }
+                return;
+            }
         }
 
         const dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
@@ -140,6 +156,20 @@ export const TransportBehavior = {
         }
 
         const room = creep.room;
+        const adjacentWorkers = creep.pos.findInRange(FIND_MY_CREEPS, 5, {
+            filter: c => c.memory.role === CreepRoles.worker && c.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        });
+        if (adjacentWorkers.length > 0) {
+            const worker = adjacentWorkers[0];
+            const transferResult = creep.transfer(worker, RESOURCE_ENERGY);
+            if (transferResult === ERR_NOT_IN_RANGE) {
+                creep.moveTo(worker, { reusePath: 2, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
+            }
+            else if (transferResult === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
+                return;
+            }
+        }
+
         const hatchery = getHatcheryInfo(room);
         const targets: AnyStoreStructure[] = [];
         const spawns = room.find(FIND_MY_SPAWNS);
@@ -162,11 +192,6 @@ export const TransportBehavior = {
                 creep.moveTo(priorityTarget, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
                 return;
             }
-            if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                // Continue delivering if still have energy
-                this.deliver(creep, { preferStorage });
-                return;
-            }
             return;
         }
 
@@ -181,11 +206,6 @@ export const TransportBehavior = {
                 creep.moveTo(battery, { reusePath: 2, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
                 return;
             }
-            if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                // Continue delivering if still have energy
-                this.deliver(creep, { preferStorage });
-                return;
-            }
             return;
         }
 
@@ -194,11 +214,6 @@ export const TransportBehavior = {
             const result = creep.transfer(storageLinkTarget, RESOURCE_ENERGY);
             if (result === ERR_NOT_IN_RANGE) {
                 creep.moveTo(storageLinkTarget, { reusePath: 2, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
-                return;
-            }
-            if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                // Continue delivering if still have energy
-                this.deliver(creep, { preferStorage });
                 return;
             }
             return;
@@ -210,11 +225,6 @@ export const TransportBehavior = {
                 creep.moveTo(storage, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
                 return;
             }
-            if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                // Continue delivering if still have energy
-                this.deliver(creep, { preferStorage });
-                return;
-            }
             return;
         }
 
@@ -224,11 +234,6 @@ export const TransportBehavior = {
                 creep.moveTo(terminal, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
                 return;
             }
-            if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                // Continue delivering if still have energy
-                this.deliver(creep, { preferStorage });
-                return;
-            }
             return;
         }
 
@@ -236,11 +241,6 @@ export const TransportBehavior = {
             const result = creep.transfer(room.storage, RESOURCE_ENERGY);
             if (result === ERR_NOT_IN_RANGE) {
                 creep.moveTo(room.storage, { reusePath: 3, range: 1, visualizePathStyle: { stroke: "#ffffff" } });
-                return;
-            }
-            if (result === OK && creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-                // Continue delivering if still have energy
-                this.deliver(creep, { preferStorage });
                 return;
             }
             return;

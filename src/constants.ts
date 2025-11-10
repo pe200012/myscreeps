@@ -33,9 +33,6 @@ export const WORKER_PRESPAWN = 20;
 /** Minimum storage energy before manager transfers to terminal */
 export const MANAGER_STORAGE_THRESHOLD = 50000;
 
-/** Hit points ratio threshold for workers to repair structures */
-export const WORKER_REPAIR_THRESHOLD = 0.85;
-
 /** Target hit points for walls and ramparts */
 export const WORKER_WALL_TARGET = 500000;
 
@@ -47,3 +44,9 @@ export const TERMINAL_ENERGY_BUFFER = 20000;
 
 /** Ticks before defender death to start spawning replacement */
 export const DEFENSE_PRESPAWN = 15;
+
+/** Default number of pioneers to send when colonizing a room */
+export const COLONIZATION_PIONEER_QUOTA = 4;
+
+/** Minimum interval between pioneer spawn site placement attempts (ticks) */
+export const COLONIZATION_SITE_RETRY = 5;

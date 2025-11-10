@@ -19,6 +19,27 @@ interface CreepMemory {
     /** Target room for scouts or remote operations */
     targetRoom?: string;
 
+    /** Identifier for associated colonization task */
+    colonizationId?: string;
+
+    /** Parent room coordinating colonization */
+    colonizationParent?: string;
+
+    /** Anchor position for placing the initial spawn */
+    colonizationAnchor?: SerializedRoomPosition;
+
+    /** Ordered list of waypoints to traverse en route to target */
+    colonizationWaypoints?: SerializedRoomPosition[];
+
+    /** Current waypoint index */
+    colonizationWaypointIndex?: number;
+
+    /** Game tick when the creep will next attempt to place a spawn site */
+    colonizationNextSiteCheck?: number;
+
+    /** Whether the colonization claimer has already signed the controller */
+    colonizationSigned?: boolean;
+
     /** Assigned source ID for drones */
     sourceId?: string;
 
@@ -48,6 +69,9 @@ interface CreepMemory {
 
     /** Current construction site being built (for worker cooperation) */
     buildTarget?: Id<ConstructionSite>;
+
+    /** Persistent repair target to reduce retarget churn */
+    repairTarget?: Id<Structure>;
 }
 
 /**
@@ -135,4 +159,71 @@ interface RoomMemory {
 
     /** Remote room configurations */
     remotes?: RemoteOutpostMemory[];
+}
+
+/** Serialized room position for memory storage */
+interface SerializedRoomPosition {
+    x: number;
+    y: number;
+    roomName: string;
+}
+
+type ColonizationTaskState = "pending" | "claiming" | "building" | "blocked" | "completed";
+
+interface ColonizationTaskMemory {
+    /** Unique identifier for the colonization effort */
+    id: string;
+
+    /** Target room to claim */
+    targetRoom: string;
+
+    /** Coordinating parent room for spawning creeps */
+    parentRoom?: string;
+
+    /** Current lifecycle state */
+    state: ColonizationTaskState;
+
+    /** Name of the originating flag, if any */
+    flagName?: string;
+
+    /** Desired spawn anchor location */
+    anchor: SerializedRoomPosition;
+
+    /** Optional traversal waypoints */
+    waypoints?: SerializedRoomPosition[];
+
+    /** Desired pioneer quantity */
+    pioneerQuota: number;
+
+    /** Game tick when task was created */
+    created: number;
+
+    /** Game tick when task was completed */
+    completedAt?: number;
+
+    /** Additional context when blocked */
+    blockedReason?: string;
+}
+
+interface ColonizationMemory {
+    tasks: ColonizationTaskMemory[];
+}
+
+interface Memory {
+    colonization?: ColonizationMemory;
+}
+
+interface MoveToOpts {
+    fallbackOpts?: import("screeps-cartographer").MoveOpts;
+    priority?: number;
+    keepTargetInRoom?: boolean;
+    avoidCreeps?: boolean;
+    avoidObstacleStructures?: boolean;
+    avoidSourceKeepers?: boolean;
+    repathIfStuck?: number;
+    ignorePortals?: boolean;
+    avoidPortals?: boolean;
+    avoidTargets?: (roomName: string) => import("screeps-cartographer").MoveTarget[];
+    avoidTargetGradient?: number;
+    maxOpsPerRoom?: number;
 }

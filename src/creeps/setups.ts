@@ -16,7 +16,9 @@ export const CreepRoles = {
     drone: "drone",
     upgrader: "upgrader",
     defender: "defender",
-    scout: "scout"
+    scout: "scout",
+    claimer: "claimer",
+    pioneer: "pioneer"
 } as const;
 
 /**
@@ -93,7 +95,7 @@ export const CreepSetups = {
             prefix: [],
             pattern: [CARRY, CARRY, MOVE],
             suffix: [],
-            sizeLimit: 3,
+            sizeLimit: 1,
             ordered: true,
             proportionalPrefixSuffix: false
         }),
@@ -101,7 +103,7 @@ export const CreepSetups = {
             prefix: [CARRY, MOVE],
             pattern: [CARRY, CARRY, MOVE],
             suffix: [],
-            sizeLimit: 6,
+            sizeLimit: 3,
             ordered: true,
             proportionalPrefixSuffix: false
         })
@@ -144,7 +146,7 @@ export const CreepSetups = {
             proportionalPrefixSuffix: false
         }),
         default: new CreepSetup(CreepRoles.upgrader, {
-            prefix: [WORK, WORK, MOVE],
+            prefix: [WORK, WORK, CARRY, MOVE],
             pattern: [WORK, WORK, CARRY, MOVE],
             suffix: [],
             sizeLimit: 3,
@@ -186,6 +188,28 @@ export const CreepSetups = {
             pattern: [MOVE],
             suffix: [],
             sizeLimit: 1,
+            ordered: true,
+            proportionalPrefixSuffix: false
+        })
+    },
+    /** Claimers: Handle controller claiming during expansion */
+    claimer: {
+        default: new CreepSetup(CreepRoles.claimer, {
+            prefix: [],
+            pattern: [CLAIM, MOVE],
+            suffix: [],
+            sizeLimit: 1,
+            ordered: true,
+            proportionalPrefixSuffix: false
+        })
+    },
+    /** Pioneers: Early workers that bootstrap new colonies */
+    pioneer: {
+        default: new CreepSetup(CreepRoles.pioneer, {
+            prefix: [WORK, CARRY, MOVE, MOVE],
+            pattern: [WORK, WORK, CARRY, MOVE, MOVE],
+            suffix: [],
+            sizeLimit: 3,
             ordered: true,
             proportionalPrefixSuffix: false
         })

@@ -31,6 +31,12 @@ const REMOVABLE_STRUCTURES: ReadonlySet<StructureConstant> = new Set([
     STRUCTURE_POWER_SPAWN
 ]);
 
+const REFERENCE_ANCHOR_STRUCTURES: ReadonlyArray<RelativeStructure> = [
+    ...CORE_STAMP,
+    ...FAST_FILL_EXTENSIONS,
+    ...SUPPORT_STRUCTURES
+];
+
 export class BasePlanner {
     public static run(room: Room): void {
         if (!room.controller?.my) {
@@ -59,15 +65,16 @@ export class BasePlanner {
         this.ensureRoadLevels(plan);
         this.maintain(room, plan);
 
-        // if (Game.time % 10 === 0) {
-        //     this.visualize(room, plan);
-        // }
-        this.visualize(room, plan);
+        if (Game.time % 10 === 0) {
+            this.visualize(room, plan);
+        }
+        // this.visualize(room, plan);
     }
 
     private static computePlan(room: Room): PlannerMemory | null {
+        const terrain = room.getTerrain();
         const distanceMatrix = buildDistanceTransform(room);
-        const anchor = this.selectAnchor(room, distanceMatrix);
+        const anchor = this.deriveAnchorFromExistingBase(room, terrain) ?? this.selectAnchor(room, distanceMatrix);
         if (!anchor) {
             return null;
         }
@@ -82,7 +89,6 @@ export class BasePlanner {
             labPositions: []
         };
 
-        const terrain = room.getTerrain();
         const blocked = new Set<string>();
         const roadSet = new Set<string>();
 
@@ -96,7 +102,7 @@ export class BasePlanner {
                 return;
             }
 
-            if (roadSet.has(key)) {
+            if (type !== STRUCTURE_RAMPART && roadSet.has(key)) {
                 plan.roads = plan.roads.filter(road => road.x !== pos.x || road.y !== pos.y);
                 roadSet.delete(key);
             }
@@ -268,6 +274,113 @@ export class BasePlanner {
         return plan;
     }
 
+    private static deriveAnchorFromExistingBase(room: Room, terrain: RoomTerrain): RoomPosition | null {
+        const layoutEntries = [...CORE_STAMP, ...FAST_FILL_EXTENSIONS, ...SUPPORT_STRUCTURES, ...LAB_STAMP];
+        const entriesByType = new Map<BuildableStructureConstant, RelativeStructure[]>();
+        for (const entry of layoutEntries) {
+            const bucket = entriesByType.get(entry.type) ?? [];
+            bucket.push(entry);
+            entriesByType.set(entry.type, bucket);
+        }
+
+        const weightByType: Partial<Record<BuildableStructureConstant, number>> = {
+            [STRUCTURE_SPAWN]: 12,
+            [STRUCTURE_STORAGE]: 8,
+            [STRUCTURE_TERMINAL]: 7,
+            [STRUCTURE_TOWER]: 5,
+            [STRUCTURE_LINK]: 4,
+            [STRUCTURE_EXTENSION]: 2,
+            [STRUCTURE_FACTORY]: 3,
+            [STRUCTURE_OBSERVER]: 2,
+            [STRUCTURE_POWER_SPAWN]: 3,
+            [STRUCTURE_LAB]: 2,
+            [STRUCTURE_NUKER]: 1
+        };
+
+        interface AnchorCandidate {
+            anchor: RoomPosition;
+            score: number;
+            derivedFromPrimary: boolean;
+        }
+
+        const candidates = new Map<string, AnchorCandidate>();
+
+        const register = (pos: RoomPosition, structureType: BuildableStructureConstant): void => {
+            const relevant = entriesByType.get(structureType);
+            if (!relevant || relevant.length === 0) {
+                return;
+            }
+            const weight = weightByType[structureType] ?? 1;
+            for (const layoutEntry of relevant) {
+                const anchorX = pos.x - layoutEntry.offset.x;
+                const anchorY = pos.y - layoutEntry.offset.y;
+                if (anchorX <= 0 || anchorX >= ROOM_SIZE - 1 || anchorY <= 0 || anchorY >= ROOM_SIZE - 1) {
+                    continue;
+                }
+                if (terrain.get(anchorX, anchorY) === TERRAIN_MASK_WALL) {
+                    continue;
+                }
+                const key = this.key(anchorX, anchorY);
+                let candidate = candidates.get(key);
+                if (!candidate) {
+                    candidate = {
+                        anchor: new RoomPosition(anchorX, anchorY, room.name),
+                        score: 0,
+                        derivedFromPrimary: false
+                    };
+                    candidates.set(key, candidate);
+                }
+                candidate.score += weight;
+                if (structureType === STRUCTURE_SPAWN || structureType === STRUCTURE_STORAGE) {
+                    candidate.derivedFromPrimary = true;
+                }
+            }
+        };
+
+        const ownedStructures = room.find(FIND_STRUCTURES) as Structure[];
+        for (const structure of ownedStructures) {
+            if (!("my" in structure) || !(structure as OwnedStructure).my) {
+                continue;
+            }
+            const type = structure.structureType as BuildableStructureConstant;
+            if (!entriesByType.has(type)) {
+                continue;
+            }
+            register(structure.pos, type);
+        }
+
+        const sites = room.find(FIND_MY_CONSTRUCTION_SITES);
+        for (const site of sites) {
+            if (!entriesByType.has(site.structureType)) {
+                continue;
+            }
+            register(site.pos, site.structureType);
+        }
+
+        if (candidates.size === 0) {
+            return null;
+        }
+
+        let best: AnchorCandidate | null = null;
+        let bestScore = -Infinity;
+        for (const candidate of candidates.values()) {
+            if (!this.isInside(candidate.anchor)) {
+                continue;
+            }
+            const alignment = this.countAnchorMatches(room, candidate.anchor);
+            if (alignment === 0 && !candidate.derivedFromPrimary) {
+                continue;
+            }
+            const totalScore = candidate.score + alignment * 3 + (candidate.derivedFromPrimary ? 5 : 0);
+            if (totalScore > bestScore) {
+                bestScore = totalScore;
+                best = candidate;
+            }
+        }
+
+        return best?.anchor ?? null;
+    }
+
     private static selectAnchor(room: Room, matrix: DistanceMatrix): RoomPosition | null {
         const terrain = room.getTerrain();
         const controller = room.controller?.pos;
@@ -304,6 +417,31 @@ export class BasePlanner {
         }
 
         return best;
+    }
+
+    private static countAnchorMatches(room: Room, anchor: RoomPosition): number {
+        let matches = 0;
+        for (const entry of REFERENCE_ANCHOR_STRUCTURES) {
+            const x = anchor.x + entry.offset.x;
+            const y = anchor.y + entry.offset.y;
+            if (x < 0 || x >= ROOM_SIZE || y < 0 || y >= ROOM_SIZE) {
+                continue;
+            }
+            const pos = new RoomPosition(x, y, room.name);
+            const structures = pos.lookFor(LOOK_STRUCTURES);
+            if (
+                structures.some(struct => struct.structureType === entry.type && (!("my" in struct) || (struct as OwnedStructure).my))
+            ) {
+                matches += 1;
+                continue;
+            }
+            const sites = pos.lookFor(LOOK_CONSTRUCTION_SITES);
+            if (sites.some(site => site.my && site.structureType === entry.type)) {
+                matches += 1;
+            }
+        }
+
+        return matches;
     }
 
     private static stampFits(anchor: RoomPosition, terrain: RoomTerrain): boolean {
@@ -709,6 +847,8 @@ export class BasePlanner {
                 return "C";
             case STRUCTURE_EXTRACTOR:
                 return "Ex";
+            case STRUCTURE_RAMPART:
+                return "R";
             default:
                 return type.slice(0, 1).toUpperCase();
         }

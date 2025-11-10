@@ -28,10 +28,13 @@ export class QueenOverlord extends Overlord {
         const hasStorage = !!room.storage;
         const setup = hasStorage ? CreepSetups.queen.default : CreepSetups.queen.early;
 
+        // as many as sources
+        const sourceCount = room.find(FIND_SOURCES).length;
+
         this.ensureTagged(setup, {
             tag: `${this.ref}:queen`,
             match: () => true,
-            quantity: 1,
+            quantity: sourceCount,
             prespawn: QUEEN_PRESPAWN,
             priority: SpawnPriorities.queen
         });
